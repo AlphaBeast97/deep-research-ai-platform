@@ -1,11 +1,27 @@
 {
-  "name": "backend",
+  "name": "deep-research-backend",
   "version": "1.0.0",
-  "description": "",
-  "main": "index.js",
+  "description": "Backend for the agentic deep-research web app (Express + any OpenAI-compatible LLM + Tavily)",
+  "type": "module",
+  "main": "src/index.js",
   "scripts": {
-    "test": "echo \"Error: no test specified\" && exit 1"
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js",
+    "test": "node --test"
   },
-  "keywords": [],
-  "type": "commonjs"
+  "keywords": [
+    "agents",
+    "research",
+    "openai",
+    "tavily"
+  ],
+  "license": "MIT",
+  "dependencies": {
+    "@tavily/core": "^0.5.6",
+    "cors": "^2.8.5",
+    "dotenv": "^16.4.7",
+    "express": "^4.21.2",
+    "mongoose": "^8.9.5",
+    "openai": "^4.79.1"
+  }
 }

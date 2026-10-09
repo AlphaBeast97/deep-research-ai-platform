@@ -1,111 +1,199 @@
+@import 'tailwindcss';
+
+/* ──────────────────────────────────────────────────────────────
+   Design tokens (dark by default, light via prefers-color-scheme).
+   Kept as plain custom properties so runtime theming stays simple;
+   `@theme inline` maps them onto Tailwind utilities such as
+   `bg-surface`, `text-muted`, `border-line`.
+   ────────────────────────────────────────────────────────────── */
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
-
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
-
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
-  -webkit-font-smoothing: antialiased;
-  -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
+  --c-bg: #0b0c10;
+  --c-inset: #111319;
+  --c-surface: #15171f;
+  --c-surface-2: #1a1d26;
+  --c-line: #262a36;
+  --c-line-soft: #1e2230;
+  --c-fg: #d7dae3;
+  --c-muted: #8b91a3;
+  --c-strong: #f4f5f8;
+  --c-accent: #a855f7;
+  --c-accent-2: #22d3ee;
+  --c-ok: #34d399;
+  --c-warn: #fbbf24;
+  --c-danger: #f87171;
+  --c-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.6);
+  color-scheme: dark;
 }
 
-@media (prefers-color-scheme: dark) {
+@media (prefers-color-scheme: light) {
   :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
+    --c-bg: #f7f7fb;
+    --c-inset: #ffffff;
+    --c-surface: #ffffff;
+    --c-surface-2: #f4f4f8;
+    --c-line: #e3e3ec;
+    --c-line-soft: #ececf3;
+    --c-fg: #3f4354;
+    --c-muted: #74798c;
+    --c-strong: #14151c;
+    --c-shadow: 0 12px 32px -16px rgba(24, 24, 40, 0.18);
+    color-scheme: light;
   }
 }
 
-body {
-  margin: 0;
+@theme inline {
+  --color-bg: var(--c-bg);
+  --color-inset: var(--c-inset);
+  --color-surface: var(--c-surface);
+  --color-surface-2: var(--c-surface-2);
+  --color-line: var(--c-line);
+  --color-line-soft: var(--c-line-soft);
+  --color-fg: var(--c-fg);
+  --color-muted: var(--c-muted);
+  --color-strong: var(--c-strong);
+  --color-accent: var(--c-accent);
+  --color-accent-2: var(--c-accent-2);
+  --color-ok: var(--c-ok);
+  --color-warn: var(--c-warn);
+  --color-danger: var(--c-danger);
+  --color-planner: #a855f7;
+  --color-researcher: #22d3ee;
+  --color-writer: #f59e0b;
+  --color-critic: #f472b6;
+
+  --font-sans: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-mono: ui-monospace, 'SFMono-Regular', Consolas, monospace;
+
+  --radius-panel: 12px;
+  --radius-control: 8px;
+
+  --shadow-panel: var(--c-shadow);
 }
 
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
-  box-sizing: border-box;
-}
+@layer base {
+  html,
+  body,
+  #root {
+    min-height: 100%;
+  }
 
-h1,
-h2 {
-  font-family: var(--heading);
-  font-weight: 500;
-  color: var(--text-h);
-}
+  body {
+    @apply bg-bg text-fg font-sans text-[15px] leading-[1.55] antialiased;
+    background-image: radial-gradient(
+      1200px 600px at 15% -10%,
+      color-mix(in srgb, var(--c-accent) 14%, transparent),
+      transparent 60%
+    );
+  }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+  h1,
+  h2,
+  h3 {
+    @apply text-strong font-semibold;
+  }
+
+  ::selection {
+    @apply bg-accent text-white;
+  }
+
+  /* thin scrollbars that suit the dark panels */
+  * {
+    scrollbar-width: thin;
+    scrollbar-color: var(--c-line) transparent;
+  }
+  *::-webkit-scrollbar {
+    width: 10px;
+    height: 10px;
+  }
+  *::-webkit-scrollbar-thumb {
+    background: var(--c-line);
+    border-radius: 8px;
+    border: 3px solid transparent;
+    background-clip: content-box;
   }
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
+
+/* ──────────────────────────────────────────────────────────────
+   Rendered report (produced by react-markdown, so it can't carry
+   utility classes on every element). Styled here in one place.
+   ────────────────────────────────────────────────────────────── */
+.markdown {
+  @apply text-[14.5px] leading-[1.68] break-words;
+}
+.markdown > *:first-child {
+  margin-top: 0;
+}
+.markdown h1 {
+  @apply text-[25px] tracking-tight mt-0 mb-3.5;
+}
+.markdown h2 {
+  @apply text-lg mt-[26px] mb-2.5 pb-[7px] border-b border-line-soft;
+}
+.markdown h3 {
+  @apply text-[15px] mt-[18px] mb-2;
+}
+.markdown p {
+  @apply mb-3;
+}
+.markdown ul,
+.markdown ol {
+  @apply mb-3 pl-[22px];
+}
+.markdown ul {
+  list-style: disc;
+}
+.markdown ol {
+  list-style: decimal;
+}
+.markdown li {
+  @apply mb-[5px];
+}
+.markdown blockquote {
+  @apply my-3 px-[15px] py-2.5 border-l-[3px] border-accent bg-surface-2 text-muted text-[13.5px] rounded-r-control;
+}
+.markdown table {
+  @apply w-full border-collapse my-3.5 text-[13px];
+}
+.markdown th,
+.markdown td {
+  @apply border border-line px-2.5 py-[7px] text-left;
+}
+.markdown th {
+  @apply bg-surface-2 text-strong;
+}
+.markdown a {
+  @apply text-accent-2;
+}
+.markdown hr {
+  @apply my-6 border-line;
+}
+
+/* Source card highlight when a citation chip jumps to it.
+   Deliberately unlayered: Tailwind's utilities layer would otherwise win over
+   the card's `border-line-soft` / `bg-inset` classes. */
+.source-card.flash {
+  @apply border-accent bg-accent/15;
+}
+
+/* Mermaid diagram wrapper (see Mermaid.jsx) */
+.mermaid-figure {
+  @apply my-4 rounded-control border border-line bg-white p-3 overflow-x-auto;
+}
+.mermaid-figure svg {
+  @apply mx-auto block max-w-full h-auto;
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Animations used by the live badges / trace dots.
+   ────────────────────────────────────────────────────────────── */
+@keyframes pulse {
+  0%,
+  100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--c-accent-2) 60%, transparent);
   }
-}
-p {
-  margin: 0;
-}
-
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
-}
-
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+  50% {
+    opacity: 0.5;
+    box-shadow: 0 0 0 5px transparent;
+  }
 }
