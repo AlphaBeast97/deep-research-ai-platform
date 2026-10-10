@@ -23,6 +23,7 @@ export default function ReportView({
   phase,
   critique,
   audit,
+  sources = [],
 }) {
   const containerRef = useRef(null)
   const [copied, setCopied] = useState(false)
@@ -41,7 +42,8 @@ export default function ReportView({
 
   const onExportMarkdown = () => downloadMarkdown({ title, report })
 
-  const onExportPdf = () => printReport({ title, html: containerRef.current?.innerHTML ?? '' })
+  const onExportPdf = () =>
+    printReport({ title, html: containerRef.current?.innerHTML ?? '', sources })
 
   if (!report) {
     return (

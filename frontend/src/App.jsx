@@ -23,7 +23,7 @@ const TABS = ['sources', 'history']
 function ResearchApp() {
   const { getToken } = useAuth()
   const research = useResearch()
-  const { status, phase, steps, plan, sources, report, record, meta, critique, audit, error } =
+  const { status, phase, steps, plan, sources, report, record, critique, audit, error } =
     research
   const running = status === 'running'
 
@@ -133,12 +133,12 @@ function ResearchApp() {
           <ReportView
             report={report}
             title={record?.title || plan?.title || 'Research report'}
-            meta={record || meta}
             running={running}
             durationMs={record?.durationMs}
             phase={phase}
             critique={critique}
             audit={audit}
+            sources={sources}
           />
         </div>
 

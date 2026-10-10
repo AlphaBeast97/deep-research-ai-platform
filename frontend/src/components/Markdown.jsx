@@ -27,20 +27,35 @@ function scrollToSource(id) {
   setTimeout(() => el.classList.remove('flash'), 1200)
 }
 
+/**
+ * A citation marker.
+ *
+ * Rendered as a real `<a href="#source-n">` rather than a button: the in-app
+ * click is intercepted to scroll instead of jumping, but the href survives into
+ * exported HTML (print/PDF/DOCX), where the sources appendix provides the same
+ * `#source-n` ids so the reference resolves in the saved artifact too.
+ */
+function Citation({ n }) {
+  return (
+    <a
+      href={`#source-${n}`}
+      className="citation-chip inline-grid h-[17px] min-w-[17px] cursor-pointer place-items-center rounded-[5px] border border-accent/35 bg-accent/15 px-1 align-super text-[10.5px] leading-none font-bold text-accent no-underline transition-colors hover:bg-accent hover:text-white"
+      title={`Jump to source ${n}`}
+      onClick={(e) => {
+        e.preventDefault()
+        scrollToSource(n)
+      }}
+    >
+      {n}
+    </a>
+  )
+}
+
 const components = {
   a({ href, children, ...props }) {
     const match = typeof href === 'string' && href.match(/^#source-(\d+)$/)
     if (match) {
-      return (
-        <button
-          type="button"
-          className="citation-chip inline-grid h-[17px] min-w-[17px] cursor-pointer place-items-center rounded-[5px] border border-accent/35 bg-accent/15 px-1 align-super text-[10.5px] leading-none font-bold text-accent transition-colors hover:bg-accent hover:text-white"
-          onClick={() => scrollToSource(match[1])}
-          title={`Jump to source ${match[1]}`}
-        >
-          {match[1]}
-        </button>
-      )
+      return <Citation n={match[1]} />
     }
     return (
       <a
