@@ -1,13 +1,16 @@
 import mongoose from 'mongoose'
 
 /**
- * MongoDB Atlas adapter. Same interface as fileStore, so switching between
- * them is just `STORAGE=mongo` + `MONGODB_URI=...` in .env — no code changes.
+ * MongoDB Atlas adapter. Every report carries the Clerk `ownerId` of the user
+ * who ran it, and every query is scoped to that id — history is private.
  */
 
 const reportSchema = new mongoose.Schema(
   {
     id: { type: String, required: true, unique: true, index: true },
+    // Clerk user id (e.g. "user_2abc..."). Required: an ownerless report could
+    // never be listed or reopened, so it should never be written.
+    ownerId: { type: String, required: true, index: true },
     query: String,
     title: String,
     scope: String,
@@ -63,13 +66,14 @@ const Report = mongoose.models.Report || mongoose.model('Report', reportSchema)
 export const name = 'mongo'
 
 export async function connect(uri) {
-  if (!uri) throw new Error('STORAGE=mongo requires MONGODB_URI to be set')
+  if (!uri) throw new Error('MONGODB_URI is not set')
   mongoose.set('strictQuery', true)
   await mongoose.connect(uri, { serverSelectionTimeoutMS: 10_000 })
   return mongoose.connection.host
 }
 
 export async function save(record) {
+  if (!record.ownerId) throw new Error('Refusing to save a report without an ownerId')
   const saved = await Report.findOneAndUpdate({ id: record.id }, record, {
     upsert: true,
     new: true,
@@ -78,8 +82,8 @@ export async function save(record) {
   return saved
 }
 
-export async function list() {
-  const records = await Report.find({}, { report: 0, steps: 0 })
+export async function list(ownerId) {
+  const records = await Report.find({ ownerId }, { report: 0, steps: 0 })
     .sort({ createdAt: -1 })
     .limit(100)
     .lean()
@@ -93,11 +97,11 @@ export async function list() {
   }))
 }
 
-export async function get(id) {
-  return Report.findOne({ id }).lean()
+export async function get(id, ownerId) {
+  return Report.findOne({ id, ownerId }).lean()
 }
 
-export async function remove(id) {
-  const res = await Report.deleteOne({ id })
+export async function remove(id, ownerId) {
+  const res = await Report.deleteOne({ id, ownerId })
   return res.deletedCount > 0
 }

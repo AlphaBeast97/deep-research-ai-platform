@@ -25,7 +25,7 @@ to change it.
 9. [The streaming protocol (SSE)](#9-the-streaming-protocol-sse)
 10. [The provider abstraction](#10-the-provider-abstraction)
 11. [Search: Tavily and normalisation](#11-search-tavily-and-normalisation)
-12. [Storage: a facade over two drivers](#12-storage-a-facade-over-two-drivers)
+12. [Storage: the MongoDB facade](#12-storage-the-mongodb-facade)
 13. [Frontend architecture](#13-frontend-architecture)
 14. [Configuration and API reference](#14-configuration-and-api-reference)
 15. [Verification: measured, not asserted](#15-verification-measured-not-asserted)
@@ -69,11 +69,11 @@ works with any LLM provider and degrades gracefully to a demo mode when unconfig
 | G3 | Grounded citations | sources numbered at retrieval; claims carry `[n]` | `orchestrator.js`, `prompts.js` |
 | G4 | Sources are inspectable | side panel with title, host, snippet, score | `SourcesPanel.jsx` |
 | G5 | Export | copy, `.md` download, print-to-PDF | `ReportView.jsx` |
-| G6 | Persistence with **zero setup** | file store by default | `db/fileStore.js` |
+| G6 | Durable, **private** persistence | MongoDB Atlas is the only store; startup fails without it | `db/mongoStore.js` |
 | G7 | **No vendor lock-in** to OpenAI | OpenAI SDK used purely as a transport; any base URL | `llm.js`, `config.js` |
-| G8 | Runs before you configure anything | automatic mock mode | `config.js` |
-| G9 | Optional real database | Mongoose adapter behind a facade, one env var | `db/mongoStore.js` |
-| G10 | No authentication complexity | single-user tool, history is global | documented, [§20](#20-known-limitations-and-honest-gaps) |
+| G8 | Misconfiguration is loud, not silent | startup lists missing keys and `exit(1)` — no mock fallback | `config.js`, `index.js` |
+| G9 | Real database | Mongoose adapter behind a facade; no file fallback | `db/mongoStore.js` |
+| G10 | Real authentication, per-user data | Clerk session → `userId` scopes every read, write and delete | `app.js`, `routes/research.js`, `db/` |
 
 ### 2.2 Non-goals (deliberately out of scope)
 
@@ -108,8 +108,7 @@ flowchart LR
     end
 
     subgraph Data["Storage"]
-        FILE[("reports.json<br/>default")]
-        MONGO[("MongoDB Atlas<br/>optional")]
+        MONGO[("MongoDB Atlas<br/>reports collection")]
     end
 
     LLM["Any OpenAI-compatible<br/>/v1/chat/completions endpoint"]:::ext
@@ -121,8 +120,7 @@ flowchart LR
     ORCH -->|"chat.completions"| LLM
     ORCH -->|"search"| TAV
     ORCH --> DBF
-    DBF -.->|"STORAGE=file"| FILE
-    DBF -.->|"STORAGE=mongo"| MONGO
+    DBF -->|"Mongoose"| MONGO
 
     classDef ext fill:#1e1b4b,stroke:#818cf8,color:#e0e7ff;
 ```
@@ -138,22 +136,17 @@ leave the server**. That is a hard architectural rule (see [§17](#17-security--
 
 | Letter | Claimed | Actually used here | Verdict |
 |---|---|---|---|
-| **M** | MongoDB | Mongoose adapter written and switchable, **but the default driver is a JSON file** | ⚠️ *Partial — by design* |
+| **M** | MongoDB | Mongoose against MongoDB Atlas — the only storage driver | ✅ |
 | **E** | Express | Express 4 + `cors` + `dotenv` | ✅ |
 | **R** | React | React 19 + Vite 8 SPA | ✅ |
 | **N** | Node.js | Node 22, ESM (`"type": "module"`) | ✅ |
 
-**Why we claim MERN anyway, and why MongoDB is optional by default:** the M of MERN is
-present as a *first-class, fully-implemented, one-env-var-away* capability. Making it
-mandatory would break goal **G6** (zero-setup) — a developer evaluating the project
-should be able to `npm install && npm run dev` and see the product work without
-provisioning a database or a cloud account. The facade in
-[§12](#12-storage-a-facade-over-two-drivers) makes that a configuration decision rather
-than a code decision, which is what actually matters.
-
-> **Defence:** If the requirement is interpreted strictly ("must use MongoDB in the
-> running default"), the fix is one line of `.env`: `STORAGE=mongo`. That is the entire
-> cost of the ambiguity. See [ADR-09](#adr-09-file-store-as-default-database-optional).
+**The M is no longer partial.** MongoDB used to be an optional adapter behind a facade; it is
+now the only store ([ADR-24](#adr-24-delete-mock-mode-and-the-file-store)). Reports are
+durable, queryable, and — because each carries its owner — private to a user
+([ADR-23](#adr-23-clerk-auth-with-owner-scoped-reports)). The facade in
+[§12](#12-storage-the-mongodb-facade) remains, but its job changed: it is now the one
+place that enforces owner scoping rather than the one place that picks a driver.
 
 ---
 
@@ -216,28 +209,28 @@ flowchart TD
         CRIT["agents/critic.js"]
         CITE["agents/citations.js<br/>(pure, no LLM)"]
         PROMPT["agents/prompts.js<br/>(pure strings)"]
-        MOCK["agents/mock.js<br/>canned data"]
     end
     subgraph Services
         LLM["llm.js<br/>JSON / stream / plain"]
         SEARCH["services/search.js<br/>Tavily + normalise"]
     end
     subgraph Foundation
-        CFG["config.js<br/>env + mock detection"]
+        CFG["config.js<br/>env + validation"]
+        AUTH["@clerk/express<br/>clerkMiddleware"]
         DB["db/index.js<br/>facade"]
-        FS["db/fileStore.js"]
         MG["db/mongoStore.js"]
     end
 
     IDX --> APP
     APP --> ROUTES
     APP --> CFG
+    APP --> AUTH
     APP --> DB
+    ROUTES --> AUTH
     ROUTES --> ORCH
     ROUTES --> DB
     ORCH --> PLAN & RES & WRITE
     ORCH --> FOLLOW & CRIT & CITE
-    ORCH --> MOCK
     ORCH --> DB
     PLAN --> LLM
     RES --> LLM
@@ -251,7 +244,7 @@ flowchart TD
     CRIT --> PROMPT
     RES --> SEARCH
     ORCH --> SEARCH
-    DB --> FS & MG
+    DB --> MG
     LLM --> CFG
     SEARCH --> CFG
     ORCH --> CFG
@@ -264,8 +257,9 @@ flowchart TD
 2. `index.js` is a **bootstrap, not an app** — it initialises storage and listens. The
    Express app itself is built by `app.js`'s `createApp()`, so the app can be imported and
    exercised without binding a port. See [ADR-20](#adr-20-app-factory-separate-from-bootstrap).
-3. `mock.js` is a leaf that only orchestrator imports. Canned data never leaks into the live
-   path, and the orchestrator stays about *flow* rather than fixtures.
+3. `routes/research.js` is the **only** place that reads auth state. It resolves the Clerk
+   `userId` once and passes it down as `ownerId`; ownership is then enforced inside the
+   storage query, so no pipeline stage can forget to scope a read.
 4. `citations.js` is **pure**: it takes a report string and the source list and returns an
    audit object. It touches no network, no LLM, and no storage — which is what makes the
    citation guarantee testable (and why the audit phase costs ~2 ms, see [§7.8](#78-the-citation-audit)).
@@ -290,18 +284,15 @@ sequenceDiagram
 
     N->>C: import (runs dotenv.config())
     C-->>C: resolve LLM_* then OPENAI_* fallbacks
-    C-->>C: compute llmConfigured, mockMode, missingKeys
+    C-->>C: compute llmConfigured + missingKeys
+    N->>C: missingKeys()
+    Note over N,C: non-empty → print list + process.exit(1)
     N->>D: initStorage()
-    alt STORAGE=mongo
-        D->>D: mongoose.connect(uri, timeout 10s)
-        D-->>N: "mongo (host)"
-    else STORAGE=file
-        D->>D: mkdir backend/data (recursive)
-        D-->>N: "file (…/reports.json)"
-    end
+    D->>D: mongoose.connect(MONGODB_URI, timeout 10s)
+    D-->>N: "mongo (host)"
     Note over D,N: on failure → log + process.exit(1)
     N->>E: app.listen(PORT)
-    E-->>E: print banner: provider, model, live/mock
+    E-->>E: print banner: provider, model, storage, auth
 ```
 
 **Note the fail-fast behaviour:** if storage cannot initialise, the process **exits**
@@ -316,10 +307,12 @@ Consequences, all intentional:
 
 1. **One place to audit** for every setting (there are 15).
 2. **No scattered `process.env.X || 'default'`** fallbacks drifting apart.
-3. **Derived values are computed once:** `llmConfigured` and `mockMode` are not
-   re-evaluated per request, so a request can never see a half-configured state.
-4. **Testable:** setting `MOCK_MODE=true` in the environment deterministically forces
-   the mock path [§18.2](#182-mock-mode-as-a-feature).
+3. **Derived values are resolved once:** `llmConfigured` and the required-key list are
+   computed from a single pass over the environment, so a request can never see a
+   half-configured state.
+4. **Fail-fast:** `index.js` calls `missingKeys()` before doing anything else and exits
+   with the list if it is non-empty — a missing key is a startup error, never a silent
+   downgrade to canned data.
 
 ---
 
@@ -751,8 +744,8 @@ consumer) has an unambiguous, non-JSON way to detect completion.
 
 | Event | Emitted when | Payload highlights | UI effect |
 |---|---|---|---|
-| `meta` | run starts | `mock`, `model`, `smartModel`, `depth`, `query` | records run metadata |
-| `phase` | entering a pipeline phase | `phase` (`plan`/`research`/`draft`/`critique`/`revision`/`audit`), `ms` on exit | phase badge + phase timeline |
+| `meta` | run starts | `model`, `smartModel`, `depth`, `critique`, `deepFetch`, `maxRounds`, `query` | records run metadata |
+| `phase` | entering a pipeline phase | `phase` (`plan`/`research`/`draft`/`critique`/`revision`/`audit`) | phase badge + phase timeline |
 | `status` | phase changes | `message` | status line |
 | `plan` | planner done | `title`, `scope`, `subQuestions` | plan checklist + scope note |
 | `step` | agent starts/finishes | `{agent, label, detail, status}` | trace row |
@@ -899,14 +892,15 @@ used is where an empty string should genuinely mean "apply the default" (the mod
 
 ```mermaid
 flowchart TD
-    A["Startup"] --> B{"MOCK_MODE=true?"}
-    B -->|"yes"| M["mock mode<br/>(forced)"]
-    B -->|"no"| C{"LLM_API_KEY or<br/>LLM_BASE_URL set?"}
-    C -->|"no"| M
-    C -->|"yes"| D{"TAVILY_API_KEY set?"}
-    D -->|"yes"| LIVE["✅ live mode<br/>real LLM + real web"]
-    D -->|"no"| M
-    M --> M2["canned search + canned report<br/>streamed through the real pipeline"]
+    A["Startup"] --> B{"LLM_API_KEY or<br/>LLM_BASE_URL set?"}
+    B -->|"no"| X["❌ missingKeys() printed<br/>process.exit(1)"]
+    B -->|"yes"| C{"TAVILY_API_KEY set?"}
+    C -->|"no"| X
+    C -->|"yes"| D{"MONGODB_URI set?"}
+    D -->|"no"| X
+    D -->|"yes"| E{"CLERK_SECRET_KEY +<br/>CLERK_PUBLISHABLE_KEY set?"}
+    E -->|"no"| X
+    E -->|"yes"| LIVE["✅ live mode<br/>real LLM + real web + private reports"]
 ```
 
 `llmConfigured = Boolean(apiKey || baseUrl)` — **either** is enough. This is what makes
@@ -1043,7 +1037,7 @@ fetchPages(urls) → Map<url, text>
 
 ---
 
-## 12. Storage: a facade over two drivers
+## 12. Storage: the MongoDB facade
 
 ### 12.1 The interface
 
@@ -1061,36 +1055,36 @@ export async function initStorage() { … }
 
 | Function | Contract |
 |---|---|
-| `connect()` | initialise; return a human-readable location for the banner |
-| `save(record)` | upsert by `record.id`; return the record |
-| `list()` | **summaries only** (no `report`, no `steps`), newest first |
-| `get(id)` | full record or `null` |
-| `remove(id)` | boolean — whether anything was deleted |
+| `connect()` | connect to MongoDB; return a human-readable location for the banner |
+| `save(record)` | upsert by `record.id`; rejects a record with no `ownerId` |
+| `list(ownerId)` | **summaries only** (no `report`, no `steps`), newest first, owner-scoped |
+| `get(id, ownerId)` | full record or `null` — only if the owner matches |
+| `remove(id, ownerId)` | boolean — whether anything was deleted |
 
 ### 12.2 Why a facade at all
 
 ```mermaid
 flowchart TD
     APP["orchestrator.js / routes"] -->|"imports only db/index.js"| F["db/index.js<br/>facade"]
-    F -->|"STORAGE=file"| FS["fileStore.js<br/>JSON file"]
-    F -->|"STORAGE=mongo"| MG["mongoStore.js<br/>Mongoose"]
-    FS --> FS1["whole doc in memory;<br/>rewrite on every mutation"]
+    F --> MG["mongoStore.js<br/>Mongoose"]
     MG --> MG1["Report model;<br/>findOneAndUpdate upsert"]
+    F --> F2["injects ownerId<br/>into every query"]
+    F2 -.-> MG
 ```
 
-Without the facade, `orchestrator.js` would `import mongoStore`, and switching to the file
-store would mean editing the pipeline. With it, the switch is `STORAGE=file` and **zero
-lines of code change** — which is the only way [ADR-09](#adr-09-file-store-as-default-database-optional)
-can be honest about MongoDB being "one env var away".
+Without the facade, `orchestrator.js` and every route would `import mongoStore` directly, and
+the `ownerId` filter would have to be remembered at each call site — exactly the kind of
+invariant that gets forgotten in a new endpoint. With the facade, scoping happens once and is
+impossible to skip ([ADR-11](#adr-11-storage-facade)).
 
-### 12.3 The `list()` asymmetry is deliberate
+### 12.3 Why `list()` projects instead of fetching everything
 
-`fileStore.list()` strips the record down to summary fields *in JavaScript*. `mongoStore.list()`
-does it with a **projection** (`{ report: 0, steps: 0 }`) and a `.limit(100)`.
+`mongoStore.list()` returns summaries using a **projection** (`{ report: 0, steps: 0 }`) plus a
+`.limit(100)`. The projection avoids transferring megabytes of report text just to render a
+history sidebar, and the limit bounds the payload for a user with a long history.
 
-Same output shape; different mechanism, each idiomatic for its backend. The Mongo side
-avoids transferring megabytes of report text just to render a history sidebar. The
-interface contract is what matters, not that the implementations look alike.
+(The earlier file-store driver stripped fields in JavaScript; with that driver gone there is no
+longer an asymmetry to explain, just a projection.)
 
 ### 12.4 The stored record
 
@@ -1112,7 +1106,7 @@ erDiagram
         date    createdAt
         number  durationMs
         string  report
-        boolean mock
+        string  ownerId "Clerk user id"
         boolean revised
         number  searchRounds
         mixed   research "raw extractions"
@@ -1331,8 +1325,8 @@ Four decisions, each with a reason:
 
 **The fallback is the point.** A diagram that fails to parse does not blank the report or
 throw a React error — it renders the raw source with a small note, so the report degrades to
-"here's the definition" rather than breaking. Every diagram in the shipped mock report and in
-the live verification run was parsed with the real Mermaid v12 parser ([§15.4](#154-what-could-not-be-verified)).
+"here's the definition" rather than breaking. Every diagram in the live verification report was
+parsed with the real Mermaid v12 parser ([§15.4](#154-what-could-not-be-verified)).
 
 **Bundle cost, measured:** `mermaid` is reached only via a dynamic `import()`, so it lands in
 its own chunks (plus one per diagram type). The main app bundle grew from 389.7 kB to
@@ -1398,14 +1392,14 @@ it is for the pipeline to quietly regress.
 |---|---|---|---|
 | `PORT` | `5000` | HTTP port | EADDRINUSE at boot |
 | `CLIENT_ORIGIN` | `http://localhost:5173` | CORS allow-list | browser blocks all requests |
-| `LLM_API_KEY` | — | provider key (placeholder ok for local) | mock mode |
+| `LLM_API_KEY` | — | provider key (placeholder ok for local) | **exit(1)** at boot |
 | `LLM_BASE_URL` | *(empty)* | any OpenAI-compatible endpoint | points at api.openai.com |
 | `LLM_MODEL` | `gpt-4o-mini` | researcher tier | provider 404 |
 | `LLM_MODEL_SMART` | falls back to `LLM_MODEL` | planner + writer tier | provider 404 |
 | `LLM_JSON_MODE` | `true` | send `response_format=json_object` | 400s on strict local models |
-| `TAVILY_API_KEY` | — | required for live search | mock mode |
-| `TAVILY_MAX_RESULTS` | `5` | sources per sub-question, **clamped 1–12** | out-of-range silently clamped |
-| `MAX_SUBQUESTIONS` | `5` | planner breadth, **clamped 1–8** | out-of-range silently clamped |
+| `TAVILY_API_KEY` | — | required for search + full-page extraction | **exit(1)** at boot |
+| `TAVILY_MAX_RESULTS` | `6` | sources per sub-question, **clamped 1–12** | out-of-range silently clamped |
+| `MAX_SUBQUESTIONS` | `6` | planner breadth, **clamped 1–8** | out-of-range silently clamped |
 | `RESEARCH_DEPTH` | `deep` | `deep`=advanced+more · `quick`=basic+≤3 | unknown values fall back to `deep` |
 | `RESEARCH_MAX_ROUNDS` | `2` | extra gap-filling rounds per sub-question, **clamped 0–3** (0 disables the loop) | 0 = shallow single pass |
 | `COVERAGE_FLOOR` | `60` | self-rated coverage (%) below which a gap round fires, **clamped 0–100** | 100 = iterate on nearly every question (slow) |
@@ -1414,11 +1408,12 @@ it is for the pipeline to quietly regress.
 | `DEEP_FETCH_SOURCES` | `3` | pages read per sub-question, **clamped 0–8** | higher = much larger prompts and slower |
 | `RESEARCH_CRITIQUE` | `true` | run the critic + revision phases | off = no revision pass, faster |
 | `VERIFY_CITATIONS` | `8` | **reserved** — parsed into `config.research.verifyCitations` but no consumer yet (see [§20](#20-known-limitations-and-honest-gaps) #12) | currently a no-op |
-| `STORAGE` | `file` | `file` or `mongo` | unknown → `file` |
-| `MONGODB_URI` | — | required when `STORAGE=mongo` | **exit(1)** at boot |
-| `MOCK_MODE` | `false` | force canned mode with keys present | hides real behaviour |
+| `MONGODB_URI` | — | MongoDB Atlas connection string (**required**) | **exit(1)** at boot |
+| `CLERK_SECRET_KEY` | — | Clerk secret key; verifies sessions (**required**, server-only) | **exit(1)** at boot |
+| `CLERK_PUBLISHABLE_KEY` | — | Clerk publishable key (**required**) | **exit(1)** at boot |
 
-**Frontend:** exactly one variable, `VITE_API_URL` (default `http://localhost:5000`).
+**Frontend:** `VITE_API_URL` (default `http://localhost:5000`) and
+`VITE_CLERK_PUBLISHABLE_KEY` (required — the same publishable key as the backend).
 
 ### 14.2 HTTP API
 
@@ -1430,13 +1425,15 @@ it is for the pipeline to quietly regress.
 | `DELETE` | `/api/research/:id` | — | `{ removed: boolean }`, `404` if absent |
 | `GET` | `/api/health` | — | mode, storage, models, provider, `jsonMode`, `missingKeys`, `depth`, `research` |
 
+Every `/api/research*` route requires a Clerk session (`Authorization: Bearer <token>`) and
+is scoped to the caller's `userId`; `GET /api/health` is the only public route.
+
 **`/api/health` is the operator's diagnostic** and is what the frontend badge reads:
 
 ```json
 {
   "ok": true,
-  "mock": false,
-  "storage": "file",
+  "storage": "mongo",
   "models": { "default": "gemini-3.5-flash-lite", "smart": "gemini-3.5-flash-lite" },
   "llmProvider": "https://generativelanguage.googleapis.com/v1beta/openai/",
   "jsonMode": true,
@@ -1464,16 +1461,20 @@ guessing.** It was added after the incident in [§15.2](#152-the-model-id-incide
 
 ## 15. Verification: measured, not asserted
 
-Everything below was executed against the real Gemini endpoint and the real Tavily API,
-with `STORAGE=file` (no database). No part of this section is inferred.
+Everything below was executed against the real Gemini endpoint and the real Tavily API, using
+the storage driver that existed at the time. No part of this section is inferred.
+
+> **Note:** these measurements predate the auth / MongoDB-only / mock-removal change. The
+> pipeline phases, timings and token counts are unaffected by it, but a line naming
+> `STORAGE=file` or mock mode describes the code as it was when the run was captured.
 
 ### 15.1 End-to-end live run
 
 Health after boot confirmed **live** mode with no missing keys (the JSON above). A real query
 (`"How do solid-state batteries compare to lithium-ion in 2026?"`) was streamed through
-`POST /api/research/stream` against the real Gemini endpoint and the real Tavily API, with
-`STORAGE=file`. **All six phases ran, all thirteen event types fired, and there were zero
-`error` frames.**
+`POST /api/research/stream` against the real Gemini endpoint and the real Tavily API, with the
+then-current file store. **All six phases ran, all thirteen event types fired, and there were
+zero `error` frames.**
 
 ```mermaid
 pie showData title Wall-clock time by phase (total ≈ 133 s)
@@ -1563,7 +1564,9 @@ diagram and styling work was added:
 | **Every required report section is emitted** | Parsed the live report for the five mandated `##` sections — `missingSections: []` | ✅ |
 | The report really contains diagrams | The writer emitted a ```` ```mermaid ```` block in the live 1,491-word report | ✅ |
 | Those diagrams are valid Mermaid | Every block extracted from the live report parsed with the real **Mermaid v12** parser under jsdom (`mermaid.parse`) | ✅ 1/1 |
-| **The mock path exercises every phase too** | `MOCK_MODE=true` run on a scratch port: phases `plan, research, draft, critique, revision, audit`, 2 streams, gap round fired, 7 table rows, 1 valid Mermaid block — this is what proves the wired-up code paths, independent of the provider | ✅ |
+| **Mock mode is gone** | `grep -ri mock backend/src frontend/src` finds no code (only explanatory comments); `agents/mock.js` and `db/fileStore.js` deleted | ✅ |
+| **Missing config fails fast** | `node src/index.js` with no `MONGODB_URI`/`CLERK_*`: printed the three missing keys and exited `1` | ✅ |
+| **Unauthenticated requests are rejected** | `createApp()` imported directly (no Mongo needed, format-valid placeholder Clerk keys): `GET /api/health` → `200`, `GET /api/research` → `401`, `POST /api/research/stream` → `401` | ✅ |
 | Markdown → Mermaid wiring | SSR smoke render of `Markdown.jsx` asserting the fence becomes `Mermaid`, the source does **not** leak into markup, citations become chips, code fences survive, GFM tables render | ✅ 8/8 |
 | Tailwind tokens actually emitted | Grepped the built CSS for `rounded-panel`, `rounded-control`, `shadow-panel`, `bg-inset`, `text-muted`, `text-planner`, `bg-researcher`, `text-critic`, and the unlayered `.source-card.flash` rule | ✅ |
 | Lint + build | `eslint` clean (exit 0), `vite build` successful (exit 0), with `pipefail` + explicit status capture | ✅ |
@@ -1650,6 +1653,9 @@ Each entry: the decision, what was rejected, why, and what it costs.
 
 ### ADR-09: File store as default; database optional
 
+> **Superseded by [ADR-24](#adr-24-delete-mock-mode-and-the-file-store).** The reasoning was
+> right for a single-operator demo and wrong once reports belong to accounts.
+
 - **Decision:** ship a JSON file store as default; provide a full Mongo adapter one env var away.
 - **Rejected:** requiring MongoDB to start.
 - **Why:** zero-setup onboarding (goal **G6**). A developer must be able to clone, `npm install`, `npm run dev` and see the product work — no cloud account, no connection string.
@@ -1658,16 +1664,16 @@ Each entry: the decision, what was rejected, why, and what it costs.
 ### ADR-10: Fail fast on storage init failure
 
 - **Decision:** if `initStorage()` throws, log and `process.exit(1)`.
-- **Rejected:** silently falling back to the file store when Mongo is unreachable.
-- **Why:** silent fallback is a data-integrity trap — the operator sets `STORAGE=mongo`, the connection fails, and the app quietly writes reports to a local file they'll never look at. A loud failure is the honest behaviour.
+- **Rejected:** falling back to a local store (or to canned data) when Mongo is unreachable.
+- **Why:** silent fallback is a data-integrity trap — the connection fails and the app quietly writes reports somewhere the operator will never look. This now applies to *every* required key, not just storage ([ADR-24](#adr-24-delete-mock-mode-and-the-file-store)). A loud failure is the honest behaviour.
 - **Cost:** no automatic resilience; the operator must fix `MONGODB_URI`.
 
 ### ADR-11: Storage facade
 
-- **Decision:** all consumers import `db/index.js`; the driver is chosen there.
-- **Rejected:** importing a concrete store at each call site.
-- **Why:** this is what makes [ADR-09](#adr-09-file-store-as-default-database-optional) truthful — the switch is configuration, not refactoring.
-- **Cost:** one indirection layer; both drivers must stay in interface lock-step (enforced by convention, not types).
+- **Decision:** all consumers import `db/index.js`; it owns the Mongoose store and the owner-scoping.
+- **Rejected:** importing the concrete store at each call site.
+- **Why:** the facade is now the single place that enforces `ownerId` scoping, so no route can accidentally query across users ([ADR-23](#adr-23-clerk-auth-with-owner-scoped-reports)). It previously also made the driver swappable; with the file store gone ([ADR-24](#adr-24-delete-mock-mode-and-the-file-store)) that benefit is moot, but the scoping benefit is larger.
+- **Cost:** one indirection layer.
 
 ### ADR-12: Flatten plan into `subQuestions` on persist
 
@@ -1692,12 +1698,16 @@ Each entry: the decision, what was rejected, why, and what it costs.
 
 ### ADR-15: Registration-free, single-user, global history
 
+> **Superseded by [ADR-23](#adr-23-clerk-auth-with-owner-scoped-reports).** Auth is now required.
+
 - **Decision:** no authentication.
 - **Rejected:** accounts, sessions, per-user scoping.
 - **Why:** scoped explicitly as a local/single-operator tool. Auth would dominate the codebase and the setup instructions for no benefit to the stated use case.
 - **Cost:** history is global and the API is open. **Do not expose this to the public internet as-is** — stated in [§17](#17-security--robustness) and [§20](#20-known-limitations-and-honest-gaps).
 
 ### ADR-16: Automatic mock mode
+
+> **Superseded by [ADR-24](#adr-24-delete-mock-mode-and-the-file-store).** Mock mode is removed.
 
 - **Decision:** when the LLM or Tavily is unconfigured, run the *real* pipeline with canned data.
 - **Rejected:** refusing to start, or returning an error.
@@ -1764,6 +1774,42 @@ Each entry: the decision, what was rejected, why, and what it costs.
   pointed at nothing becomes nothing. This is deliberate and is why `invalidRemoved` is
   surfaced in the integrity strip rather than hidden.
 
+### ADR-23: Clerk auth with owner-scoped reports
+
+- **Decision:** authenticate with Clerk. `clerkMiddleware()` verifies a session on every
+  request; every `/api/research*` route requires one; each saved report carries the owner's
+  Clerk `userId`, and every read, list and delete filters on it.
+- **Rejected:** rolling our own sessions (password hashing, reset flows, token rotation —
+  a large security surface for no product benefit); leaving the tool single-user (ADR-15).
+- **Why:** reports are private user data, and "private" has to be enforced in the query, not
+  the UI. Scoping in `db/index.js` means a whole class of bug — forgetting to filter — cannot
+  happen at a call site. Clerk also gives us a maintained sign-in UI and the server-side
+  verification path for free.
+- **Why not session cookies:** the UI (`:5173`) and API (`:5000`) are different origins, so a
+  cookie would need `SameSite`/credentials gymnastics. A short-lived bearer token from
+  `getToken()` is simpler and works identically in dev and production.
+- **Cost:** two more required secrets, a third-party dependency on the critical path, and a
+  real deployment step (claim the Clerk app, switch to production keys). Requests without a
+  valid session now fail with `401` rather than returning global data.
+
+### ADR-24: Delete mock mode and the file store
+
+- **Decision:** remove mock mode and the JSON file store entirely. Missing configuration is a
+  **startup failure** (`missingKeys()` → print → `exit(1)`), not a degraded run.
+- **Rejected:** keeping mock mode as a demo/offline path; keeping the file store as a dev
+  fallback.
+- **Why:** mock mode was a *liability* once auth and private reports landed. Canned data has no
+  owner, so it can't satisfy the ownership invariant — and its presence made "is this real?"
+  a question the code had to keep answering (badges, warning banners, `mock` fields in the
+  event stream, the health payload, and the stored record). Deleting it removes a whole
+  parallel code path from the orchestrator, the search service, the LLM client, the config and
+  the UI. The file store had the same problem: a silent second store is a data-integrity trap,
+  and it cannot represent per-user ownership cleanly.
+- **Cost:** there is no zero-config demo any more. Cloning the repo now means creating a Clerk
+  app and an Atlas cluster before the server will boot. That is a real loss and is bought back
+  deliberately: the failure message names exactly what is missing, so the fix is one command
+  away, and the product never lies about whether output is real research.
+
 ---
 
 ## 17. Security & robustness
@@ -1771,6 +1817,8 @@ Each entry: the decision, what was rejected, why, and what it costs.
 | Concern | Mitigation | Where |
 |---|---|---|
 | **XSS from model/web content** | `react-markdown` element rendering; never `innerHTML` | `Markdown.jsx` (ADR-14) |
+| **Unauthenticated access** | `clerkMiddleware()` verifies every request; `/api/research*` returns `401` without a session | `app.js`, `routes/research.js` (ADR-23) |
+| **Cross-user data access** | Every storage query filters on `ownerId`; another user's report id returns `404` | `db/index.js`, `mongoStore.js` (ADR-23) |
 | **API key leakage** | Keys live only in the backend process; the browser never receives them | architecture ([§3](#3-system-context)) |
 | **CORS** | Explicit `CLIENT_ORIGIN` allow-list, not `*` | `index.js` |
 | **Oversized request bodies** | `express.json({ limit: '1mb' })` | `index.js` |
@@ -1845,12 +1893,13 @@ Four tiers of failure handling, each deliberate:
 is called you can no longer send a status code. Validation must happen first, which is why
 the query checks sit at the top of the handler.
 
-### 18.2 Mock mode as a feature
+### 18.2 Configuration is validated at startup, not per request
 
-Mock mode is not an error state — it's a first-class mode (ADR-16). It activates when
-`MOCK_MODE=true`, **or** when the LLM is unconfigured, **or** when Tavily is unconfigured.
-It streams through the identical SSE pipeline, so the frontend cannot tell the difference
-except by the `meta.mock` flag it renders as a badge and a warning banner.
+There is no mock mode any more ([ADR-24](#adr-24-delete-mock-mode-and-the-file-store)). Before
+`initStorage()` runs, `index.js` calls `missingKeys()`; if anything required is absent it
+prints the list and exits `1`. This is deliberately the *first* thing that happens, so a
+misconfigured deployment fails in milliseconds with an actionable message rather than at the
+first model call, half a minute into a research run, in front of a user.
 
 ---
 
@@ -1940,15 +1989,15 @@ Ordered by how much they'd matter if this became more than a local tool.
 | # | Limitation | Impact | Sketch of the fix |
 |---|---|---|---|
 | 1 | **Research is sequential** | ~113 s of a 133 s run | Bounded-concurrency fan-out with a two-pass numbering scheme |
-| 2 | **No authentication** | Cannot be exposed publicly | Add sessions + `ownerId` on records; scope `list`/`get`/`remove` |
-| 3 | **File store rewrites the whole file** | O(n) write per save; not multi-process safe | That's what `STORAGE=mongo` is for |
+| 2 | **Auth is login-only** | No roles, sharing, teams or org scoping | Clerk Organizations + an `orgId` alongside `ownerId` |
+| 3 | **No local/offline mode** | A missing key means the server will not boot | Deliberate ([ADR-24](#adr-24-delete-mock-mode-and-the-file-store)); a documented demo mode could return behind an explicit flag |
 | 4 | **Prompt injection from web content** | A hostile page could skew a report | Source allow-listing, injection classifiers, output review — all partial |
 | 5 | **Mongo driver never runtime-verified** | Unknown-unknowns in the adapter | Point `MONGODB_URI` at a cluster and run the same script |
-| 6 | **`list()` capped at 100 in Mongo** | Silent truncation (file store has no cap) | Add pagination; make the cap explicit in the UI |
-| 7 | **Mock mode could be mistaken for research** | Badge + banner + `[mock]` titles | Already mitigated; could add a watermark to exports |
+| 6 | **`list()` capped at 100** | Silent truncation for a user with a long history | Add pagination; make the cap explicit in the UI |
+| 7 | **Session tokens are the only auth signal** | A leaked token is valid until it expires | Short token lifetime is Clerk's default; add audience/org claims if this API is ever shared |
 | 8 | **No reconnecting SSE** | A dropped connection ends the run | Persist partial progress and offer `GET /api/research/:id` resume |
 | 9 | **Search quality unseen** | A run with no results still "succeeds" | Surface `gaps` prominently in the UI; warn when `gaps` is non-empty |
-| 10 | **No automated test suite** | Regressions caught only by manual runs | A mock-mode integration test is nearly free — the pipeline already runs deterministically in mock |
+| 10 | **No automated test suite** | Regressions caught only by manual runs | The pure pieces (citations, planner parsing, `missingKeys`) are the cheapest first tests; the network calls need stubbing |
 | 11 | **Report diagrams are LLM-authored** | A malformed ```` ```mermaid ```` block shows the "could not render" fallback instead of a diagram | The fallback and the prompt constraints already contain it; a server-side `mermaid.parse` guard could reject bad blocks before persisting |
 | 12 | **`VERIFY_CITATIONS` is parsed but unused** | A documented config knob that does nothing is worse than no knob — it implies verification that isn't happening | Wire it to a per-citation source-check pass, or delete it and the `.env.example` line |
 | 13 | **The critic is the same model family as the writer** | A shared blind spot can survive an adversarial review | The critique is one prompt in one file; pointing it at a *different* provider is a small, high-value change |
@@ -1976,9 +2025,10 @@ Ordered by how much they'd matter if this became more than a local tool.
 | **Integrity strip** | The UI row showing citation coverage, uncited count, removed citations, and the critique verdict. |
 | **SSE** | Server-Sent Events — a one-way `text/event-stream` HTTP response. |
 | **Frame** | One `data: …\n\n` unit in the SSE stream. |
-| **Mock mode** | The real pipeline running on canned data, when the LLM or search is unconfigured. |
+| **Owner** | The Clerk `userId` a report belongs to. Stored as `ownerId`; every query filters on it. |
+| **Session token** | The short-lived JWT the frontend gets from `getToken()` and sends as `Authorization: Bearer …`. |
+| **Fail-fast** | Refusing to start when a required key is missing, instead of degrading to canned data. |
 | **Neutral env var** | An `LLM_*` variable, as opposed to the legacy `OPENAI_*` fallbacks. |
-| **Live mode** | Both an LLM provider and Tavily are configured. |
 
 ---
 
@@ -1989,9 +2039,9 @@ backend/
   .env.example                     every setting, documented, incl. the depth/integrity block
   package.json                     6 dependencies, ESM, node --watch dev
   src/
-    index.js                       bootstrap: storage init, listen, startup banner
-    app.js                         Express app factory (CORS, routes, health, errors)
-    config.js                      env resolution, mock detection, derived flags
+    index.js                       bootstrap: validate config → connect Mongo → listen
+    app.js                         Express app factory (Clerk middleware, CORS, routes, health)
+    config.js                      env resolution, required-key validation, derived flags
     llm.js                         OpenAI-SDK transport: chatJSON / chatStream / chat
     agents/
       orchestrator.js              the 6-phase pipeline; emits all 13 SSE event types;
@@ -2005,23 +2055,20 @@ backend/
       writer.js                    everything → streamed draft (writeDraft),
                                    draft + critique → streamed revision (reviseReport)
       prompts.js                   all prompt text incl. REPORT_SPEC; zero logic
-      mock.js                      canned plan / extractions / followups / critique /
-                                   draft / revision — exercises every phase
     services/
-      search.js                    Tavily + normalisation + mock search
+      search.js                    Tavily + normalisation + full-page extract
     routes/
-      research.js                  POST /stream (SSE), history CRUD
+      research.js                  auth guard; POST /stream (SSE), owner-scoped CRUD
     db/
-      index.js                     storage facade (picks driver)
-      fileStore.js                 JSON file (default)
-      mongoStore.js                Mongoose adapter (optional)
+      index.js                     storage facade; owner-scoped reads/writes
+      mongoStore.js                Mongoose adapter (only store)
 frontend/
   vite.config.js                   react + @tailwindcss/vite plugins
   src/
     api.js                         SSE POST-stream parser + REST helpers
     index.css                      Tailwind import, theme tokens, .markdown styles
     hooks/useResearch.js           run lifecycle state machine
-    App.jsx                        composition, health + history + tabs
+    App.jsx                        ClerkProvider gate, composition, health + history + tabs
     lib/
       cn.js                        class-name join helper
       export.js                    .md download + print-to-PDF
@@ -2030,7 +2077,7 @@ frontend/
       ui/                          Button, Panel (+PanelHead), Badge
       QueryForm.jsx                input, examples, run/stop
       AgentTrace.jsx               phase badge, scope note, plan checklist, step trace
-      ReportView.jsx               meta, toolbar (copy/.md/PDF), mock banner,
+      ReportView.jsx               meta, toolbar (copy/.md/PDF),
                                    integrity strip, self-critique disclosure
       SourcesPanel.jsx             numbered source cards (#source-n anchors), dims uncited
       HistoryPanel.jsx             saved reports, open/delete
@@ -2042,7 +2089,7 @@ frontend/
 
 ```bash
 # backend
-cd backend && cp .env.example .env    # then fill LLM_* and TAVILY_API_KEY
+cd backend && cp .env.example .env    # then fill CLERK_*, MONGODB_URI, LLM_*, TAVILY_API_KEY
 npm install && npm run dev            # http://localhost:5000
 
 # frontend
@@ -2050,8 +2097,10 @@ cd frontend && npm install && npm run dev   # http://localhost:5173
 ```
 
 ```bash
-curl -s localhost:5000/api/health | jq
+curl -s localhost:5000/api/health | jq          # public
+# research routes need a Clerk session token:
 curl -sN -X POST localhost:5000/api/research/stream \
+  -H "Authorization: Bearer $CLERK_SESSION_TOKEN" \
   -H 'Content-Type: application/json' \
   -d '{"query":"your topic"}' | head -40
 ```

@@ -1,9 +1,25 @@
+import { getAuth } from '@clerk/express'
 import { Router } from 'express'
 import { runResearch } from '../agents/orchestrator.js'
 import * as db from '../db/index.js'
-import config from '../config.js'
 
 const router = Router()
+
+/**
+ * Every research endpoint is private. `clerkMiddleware()` (mounted in app.js)
+ * has already verified the session by the time these handlers run, so we just
+ * read the auth state and reject signed-out callers.
+ */
+router.use((req, res, next) => {
+  const { isAuthenticated, userId } = getAuth(req)
+  if (!isAuthenticated || !userId) {
+    res.status(401).json({ error: 'Sign in to run research.' })
+    return
+  }
+  // Reports are private: every storage call below is scoped to this id.
+  req.userId = userId
+  next()
+})
 
 /**
  * POST /api/research/stream
@@ -46,7 +62,7 @@ router.post('/stream', async (req, res) => {
   })
 
   try {
-    await runResearch({ query, onEvent: send })
+    await runResearch({ query, ownerId: req.userId, onEvent: send })
   } catch (err) {
     console.error('[research] pipeline error:', err)
     send({ type: 'error', message: err.message || 'Research failed unexpectedly.' })
@@ -59,19 +75,19 @@ router.post('/stream', async (req, res) => {
   }
 })
 
-/** GET /api/research — history summary list (newest first). */
-router.get('/', async (_req, res) => {
+/** GET /api/research — the signed-in user's history (newest first). */
+router.get('/', async (req, res) => {
   try {
-    res.json({ reports: await db.list() })
+    res.json({ reports: await db.list(req.userId) })
   } catch (err) {
     res.status(500).json({ error: err.message })
   }
 })
 
-/** GET /api/research/:id — full stored report. */
+/** GET /api/research/:id — full stored report, if it belongs to the caller. */
 router.get('/:id', async (req, res) => {
   try {
-    const record = await db.get(req.params.id)
+    const record = await db.get(req.params.id, req.userId)
     if (!record) return res.status(404).json({ error: 'Report not found.' })
     res.json(record)
   } catch (err) {
@@ -82,7 +98,7 @@ router.get('/:id', async (req, res) => {
 /** DELETE /api/research/:id */
 router.delete('/:id', async (req, res) => {
   try {
-    const removed = await db.remove(req.params.id)
+    const removed = await db.remove(req.params.id, req.userId)
     res.status(removed ? 200 : 404).json({ removed })
   } catch (err) {
     res.status(500).json({ error: err.message })

@@ -66,27 +66,38 @@ const config = {
     verifyCitations: clamp(int(process.env.VERIFY_CITATIONS, 8), 0, 25),
   },
 
-  storage: {
-    // "file" (default) or "mongo"
-    driver: (process.env.STORAGE || 'file').toLowerCase(),
-    mongoUri: process.env.MONGODB_URI || '',
+  // MongoDB is the only storage driver — see db/index.js. There is no file
+  // fallback: a report store that silently disappears on restart is worse than
+  // a startup error you can fix.
+  mongo: {
+    uri: process.env.MONGODB_URI || '',
   },
 
-  forceMock: bool(process.env.MOCK_MODE, false),
+  // Clerk authentication. The secret key is what the server verifies session
+  // tokens with; the publishable key is used by the SDK's middleware too and
+  // should be set alongside it.
+  clerk: {
+    publishableKey: process.env.CLERK_PUBLISHABLE_KEY || '',
+    secretKey: process.env.CLERK_SECRET_KEY || '',
+  },
 }
 
 // The LLM counts as configured with either an API key or a base URL
 // (local servers like Ollama don't issue keys).
 config.llmConfigured = Boolean(config.llm.apiKey || config.llm.baseUrl)
 
-// Mock mode kicks in automatically when configuration is missing so the app
-// always works end-to-end out of the box.
-config.mockMode = config.forceMock || !config.llmConfigured || !config.tavily.apiKey
-
+/**
+ * Settings the server cannot run without. There is no mock mode any more, so a
+ * missing key is a hard startup failure rather than a silently degraded run —
+ * `index.js` prints this list and exits.
+ */
 export const missingKeys = () => {
   const missing = []
   if (!config.llmConfigured) missing.push('LLM_API_KEY (or LLM_BASE_URL)')
   if (!config.tavily.apiKey) missing.push('TAVILY_API_KEY')
+  if (!config.mongo.uri) missing.push('MONGODB_URI')
+  if (!config.clerk.secretKey) missing.push('CLERK_SECRET_KEY')
+  if (!config.clerk.publishableKey) missing.push('CLERK_PUBLISHABLE_KEY')
   return missing
 }
 

@@ -8,16 +8,6 @@ import * as followups from './followups.js'
 import * as critic from './critic.js'
 import * as writer from './writer.js'
 import { auditCitations, sanitizeCitations } from './citations.js'
-import {
-  mockCritique,
-  mockDraft,
-  mockExtraction,
-  mockFollowUps,
-  mockPlan,
-  mockRevision,
-} from './mock.js'
-
-const sleep = (ms) => new Promise((r) => setTimeout(r, ms))
 
 export const wordCount = (text) => (text.trim() ? text.trim().split(/\s+/).length : 0)
 
@@ -33,7 +23,7 @@ export const wordCount = (text) => (text.trim() ? text.trim().split(/\s+/).lengt
  *   meta | phase | status | plan | step | sources | findings | token
  *   critique | report-reset | audit | done | error
  */
-export async function runResearch({ query, onEvent = () => {} }) {
+export async function runResearch({ query, ownerId, onEvent = () => {} }) {
   const runId = randomUUID()
   const startedAt = Date.now()
 
@@ -146,7 +136,7 @@ export async function runResearch({ query, onEvent = () => {} }) {
    * `COVERAGE_FLOOR`, the follow-up planner proposes genuinely new queries and
    * the loop runs again, up to `RESEARCH_MAX_ROUNDS` extra rounds.
    */
-  const researchOne = async (sq, position) => {
+  const researchOne = async (sq) => {
     const subSources = []
     const asked = [sq.question]
     let round = 0
@@ -158,9 +148,7 @@ export async function runResearch({ query, onEvent = () => {} }) {
       if (round === 1) {
         await searchRound(sq.question, sq, subSources)
       } else {
-        const plan = config.mockMode
-          ? mockFollowUps(sq.question, asked)
-          : await followups.proposeQueries(sq.question, extraction, asked)
+        const plan = await followups.proposeQueries(sq.question, extraction, asked)
 
         if (!plan.queries.length) {
           logStep(
@@ -190,14 +178,6 @@ export async function runResearch({ query, onEvent = () => {} }) {
 
       if (subSources.length === 0) {
         extraction = researcher.emptyExtraction(sq.question, sq.intent)
-      } else if (config.mockMode) {
-        await sleep(300)
-        // First sub-question reports low coverage so the gap round is demoed.
-        extraction = mockExtraction(
-          sq.question,
-          subSources,
-          round === 1 && position === 0 ? 45 : 80,
-        )
       } else {
         const res = await researcher.extract(sq.question, sq.intent, withPageText(subSources))
         addUsage(res.usage)
@@ -226,7 +206,6 @@ export async function runResearch({ query, onEvent = () => {} }) {
   // ── meta ───────────────────────────────────────────────────
   emit({
     type: 'meta',
-    mock: config.mockMode,
     model: config.llm.model,
     smartModel: config.llm.smartModel,
     depth: config.research.depth,
@@ -241,23 +220,17 @@ export async function runResearch({ query, onEvent = () => {} }) {
   emit({ type: 'status', message: 'Planning the research strategy…' })
   logStep('planner', 'Decomposing the topic', `“${query}”`, 'start')
 
-  let plan
-  if (config.mockMode) {
-    await sleep(500)
-    plan = mockPlan(query)
-  } else {
-    plan = await planner.plan(query)
-    addUsage(plan.usage)
-  }
+  const plan = await planner.plan(query)
+  addUsage(plan.usage)
   logStep('planner', 'Plan ready', `${plan.subQuestions.length} sub-questions`)
   emit({ type: 'plan', title: plan.title, scope: plan.scope, subQuestions: plan.subQuestions })
 
   // ── 2. RESEARCH (search → deep fetch → gap filling) ────────
   setPhase('research')
   const research = []
-  for (const [position, sq] of plan.subQuestions.entries()) {
+  for (const sq of plan.subQuestions) {
     emit({ type: 'status', message: `Researching: ${sq.question}` })
-    const extraction = await researchOne(sq, position)
+    const extraction = await researchOne(sq)
     research.push(extraction)
     emit({ type: 'findings', subQuestion: sq.question, extraction })
   }
@@ -275,16 +248,14 @@ export async function runResearch({ query, onEvent = () => {} }) {
     'start',
   )
 
-  const draft = config.mockMode
-    ? await mockDraft({ plan, research, sources, emit })
-    : await writer.writeDraft({
-        query,
-        plan,
-        research,
-        sources,
-        rounds: totalRounds,
-        onToken: (text) => emit({ type: 'token', text }),
-      })
+  const draft = await writer.writeDraft({
+    query,
+    plan,
+    research,
+    sources,
+    rounds: totalRounds,
+    onToken: (text) => emit({ type: 'token', text }),
+  })
   logStep('writer', 'Draft complete', `${wordCount(draft)} words`)
 
   let report = draft
@@ -300,14 +271,9 @@ export async function runResearch({ query, onEvent = () => {} }) {
     })
     logStep('critic', 'Auditing the draft', `${sources.length} sources to check against`, 'start')
 
-    if (config.mockMode) {
-      await sleep(500)
-      critique = mockCritique()
-    } else {
-      const res = await critic.critique({ query, research, sources, draft })
-      addUsage(res.usage)
-      critique = res.critique
-    }
+    const res = await critic.critique({ query, research, sources, draft })
+    addUsage(res.usage)
+    critique = res.critique
 
     logStep(
       'critic',
@@ -339,17 +305,15 @@ export async function runResearch({ query, onEvent = () => {} }) {
     )
 
     try {
-      const candidate = config.mockMode
-        ? await mockRevision({ plan, research, sources, emit })
-        : await writer.reviseReport({
-            query,
-            plan,
-            research,
-            sources,
-            draft,
-            critique,
-            onToken: (text) => emit({ type: 'token', text }),
-          })
+      const candidate = await writer.reviseReport({
+        query,
+        plan,
+        research,
+        sources,
+        draft,
+        critique,
+        onToken: (text) => emit({ type: 'token', text }),
+      })
 
       // Guard against a truncated or empty revision wiping out a good draft.
       if (candidate && wordCount(candidate) >= 120) {
@@ -400,6 +364,7 @@ export async function runResearch({ query, onEvent = () => {} }) {
 
   const record = {
     id: runId,
+    ownerId,
     query,
     title: plan.title,
     scope: plan.scope || '',
@@ -418,7 +383,6 @@ export async function runResearch({ query, onEvent = () => {} }) {
     phases,
     steps,
     usage,
-    mock: config.mockMode,
   }
 
   try {

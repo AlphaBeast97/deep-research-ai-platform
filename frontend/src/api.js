@@ -1,5 +1,27 @@
 const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').replace(/\/$/, '')
 
+// Clerk session tokens are short-lived, so we fetch one per request. The app
+// registers its `getToken` here once (see App.jsx) and every call below can
+// authenticate without threading a token through each function signature.
+let getTokenFn = null
+
+export function setAuthTokenGetter(fn) {
+  getTokenFn = fn
+}
+
+async function authHeaders(extra = {}) {
+  const headers = { ...extra }
+  if (getTokenFn) {
+    try {
+      const token = await getTokenFn()
+      if (token) headers.Authorization = `Bearer ${token}`
+    } catch {
+      // Signed out — the backend answers 401 and the UI reacts to that.
+    }
+  }
+  return headers
+}
+
 /**
  * Stream a research run. The backend answers with Server-Sent Events over a
  * POST request, so we read the response body as a stream and parse
@@ -8,7 +30,7 @@ const API_BASE = (import.meta.env.VITE_API_URL || 'http://localhost:5000').repla
 export async function streamResearch(query, { onEvent, signal } = {}) {
   const res = await fetch(`${API_BASE}/api/research/stream`, {
     method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
+    headers: await authHeaders({ 'Content-Type': 'application/json' }),
     body: JSON.stringify({ query }),
     signal,
   })
@@ -61,20 +83,23 @@ export async function fetchHealth() {
 }
 
 export async function fetchReports() {
-  const res = await fetch(`${API_BASE}/api/research`)
+  const res = await fetch(`${API_BASE}/api/research`, { headers: await authHeaders() })
   if (!res.ok) throw new Error('Could not load history')
   const body = await res.json()
   return body.reports ?? []
 }
 
 export async function fetchReport(id) {
-  const res = await fetch(`${API_BASE}/api/research/${id}`)
+  const res = await fetch(`${API_BASE}/api/research/${id}`, { headers: await authHeaders() })
   if (!res.ok) throw new Error('Could not load that report')
   return res.json()
 }
 
 export async function deleteReport(id) {
-  const res = await fetch(`${API_BASE}/api/research/${id}`, { method: 'DELETE' })
+  const res = await fetch(`${API_BASE}/api/research/${id}`, {
+    method: 'DELETE',
+    headers: await authHeaders(),
+  })
   if (!res.ok) throw new Error('Could not delete that report')
   return res.json()
 }

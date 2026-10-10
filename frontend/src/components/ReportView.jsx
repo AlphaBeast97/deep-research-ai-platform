@@ -18,7 +18,6 @@ const PHASE_LABEL = {
 export default function ReportView({
   report,
   title,
-  meta,
   running,
   durationMs,
   phase,
@@ -81,7 +80,6 @@ export default function ReportView({
       <p className="text-xs text-muted">
         {words} words
         {durationMs ? ` · ${(durationMs / 1000).toFixed(1)}s` : ''}
-        {meta?.mock ? ' · mock data' : ''}
       </p>
 
       {/* ── integrity summary ───────────────────────────────── */}
@@ -110,14 +108,6 @@ export default function ReportView({
                 : `critique: ${critique.issues.length} issue${critique.issues.length === 1 ? '' : 's'}`}
             </Badge>
           )}
-        </div>
-      )}
-
-      {meta?.mock && (
-        <div className="mt-3 rounded-control border border-warn/35 bg-warn/10 px-[15px] py-3 text-[13.5px] text-warn">
-          Running in mock mode — add <code className="rounded bg-black/25 px-1">LLM_API_KEY</code>{' '}
-          and <code className="rounded bg-black/25 px-1">TAVILY_API_KEY</code> to{' '}
-          <code className="rounded bg-black/25 px-1">backend/.env</code> for real research.
         </div>
       )}
 

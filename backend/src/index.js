@@ -3,12 +3,23 @@ import { createApp } from './app.js'
 import { initStorage, storageName } from './db/index.js'
 
 async function start() {
+  // There is no mock mode any more: a missing credential is a hard stop with a
+  // readable list, not a silently degraded run.
+  const missing = missingKeys()
+  if (missing.length) {
+    console.error('\n✗ Missing required configuration:')
+    for (const key of missing) console.error(`  · ${key}`)
+    console.error('\n  Copy backend/.env.example to backend/.env and fill these in,')
+    console.error('  then restart. See README.md → Configuration.\n')
+    process.exit(1)
+  }
+
   let storageInfo = storageName
   try {
     storageInfo = await initStorage()
   } catch (err) {
-    console.error(`\n✗ Could not initialise storage: ${err.message}`)
-    console.error('  If STORAGE=mongo, check MONGODB_URI. Falling back is not automatic.\n')
+    console.error(`\n✗ Could not connect to MongoDB: ${err.message}`)
+    console.error('  Check MONGODB_URI and your Atlas IP allow-list.\n')
     process.exit(1)
   }
 
@@ -21,12 +32,7 @@ async function start() {
     console.log(`  ├─ storage     ${storageInfo}`)
     console.log(`  ├─ llm         ${config.llm.baseUrl || 'api.openai.com'}`)
     console.log(`  ├─ model       ${config.llm.model} (smart: ${config.llm.smartModel})`)
-    if (config.mockMode) {
-      console.log(`  └─ MOCK MODE   missing: ${missingKeys().join(', ') || 'forced'}`)
-      console.log('     Add keys to backend/.env and restart for real research.\n')
-    } else {
-      console.log('  └─ live mode   LLM + Tavily configured\n')
-    }
+    console.log('  └─ auth        Clerk\n')
   })
 }
 

@@ -10,8 +10,15 @@ const MAX_SNIPPET_CHARS = 800
 const collapse = (text) => (text || '').replace(/\s+/g, ' ').trim()
 
 let tvly = null
-if (!config.mockMode && config.tavily.apiKey) {
+if (config.tavily.apiKey) {
   tvly = tavily({ apiKey: config.tavily.apiKey })
+}
+
+// Startup validation guarantees a key, but the client is built lazily above so
+// a misconfigured import fails with a clear message instead of a TypeError.
+const requireClient = () => {
+  if (!tvly) throw new Error('TAVILY_API_KEY is not configured')
+  return tvly
 }
 
 /**
@@ -21,11 +28,7 @@ if (!config.mockMode && config.tavily.apiKey) {
 export async function webSearch(query, { maxResults, topic = 'general' } = {}) {
   const limit = maxResults ?? config.tavily.maxResults
 
-  if (!tvly) {
-    return mockSearch(query, limit)
-  }
-
-  const res = await tvly.search(query, {
+  const res = await requireClient().search(query, {
     maxResults: limit,
     searchDepth: config.research.depth === 'deep' ? 'advanced' : 'basic',
     topic,
@@ -51,9 +54,9 @@ export async function webSearch(query, { maxResults, topic = 'general' } = {}) {
  */
 export async function fetchPages(urls) {
   const unique = [...new Set(urls)].filter(Boolean)
-  if (!tvly || unique.length === 0) return new Map()
+  if (unique.length === 0) return new Map()
 
-  const res = await tvly.extract(unique, {
+  const res = await requireClient().extract(unique, {
     extractDepth: config.research.depth === 'deep' ? 'advanced' : 'basic',
     format: 'markdown',
   })
@@ -64,19 +67,4 @@ export async function fetchPages(urls) {
     if (text) pages.set(r.url, text.slice(0, MAX_PAGE_CHARS))
   }
   return pages
-}
-
-/**
- * Deterministic canned results so the app is fully runnable before any API
- * keys are added. Clearly marked so it is never mistaken for real research.
- */
-function mockSearch(query, limit) {
-  const base = query.replace(/[^\w\s]/g, '').slice(0, 60)
-  return Array.from({ length: Math.min(limit, 3) }, (_, i) => ({
-    title: `[mock] ${base} — reference ${i + 1}`,
-    url: `https://example.com/mock/${encodeURIComponent(base)}-${i + 1}`,
-    snippet:
-      'This is placeholder search content returned because no TAVILY_API_KEY is set. Add your key to .env to fetch real sources.',
-    score: 0.9 - i * 0.1,
-  }))
 }

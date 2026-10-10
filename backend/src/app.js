@@ -1,3 +1,4 @@
+import { clerkMiddleware } from '@clerk/express'
 import cors from 'cors'
 import express from 'express'
 import config, { missingKeys } from './config.js'
@@ -15,11 +16,14 @@ export function createApp() {
   app.use(cors({ origin: config.clientOrigin }))
   app.use(express.json({ limit: '1mb' }))
 
-  /** Liveness + configuration probe. The UI uses it to show live/mock mode. */
+  // Verifies the Clerk session on every request and attaches `req.auth` (or
+  // leaves it signed-out). Route-level guards read it with `getAuth(req)`.
+  app.use(clerkMiddleware())
+
+  /** Liveness + configuration probe. */
   app.get('/api/health', (_req, res) => {
     res.json({
       ok: true,
-      mock: config.mockMode,
       storage: storageName,
       models: { default: config.llm.model, smart: config.llm.smartModel },
       llmProvider: config.llm.baseUrl || 'api.openai.com',

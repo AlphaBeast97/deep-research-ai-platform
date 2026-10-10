@@ -1,26 +1,21 @@
 import OpenAI from 'openai'
 import config from './config.js'
 
-let client = null
-if (!config.mockMode && config.llmConfigured) {
-  client = new OpenAI({
-    // Local servers (Ollama, LM Studio, vLLM) don't require a key, but the
-    // SDK rejects an empty string — so send a placeholder when none is set.
-    apiKey: config.llm.apiKey || 'not-needed',
-    // Any OpenAI-compatible provider works: Groq, OpenRouter, Together, etc.
-    ...(config.llm.baseUrl ? { baseURL: config.llm.baseUrl } : {}),
-  })
-}
-
-export const isMock = () => config.mockMode || !client
+// Local servers (Ollama, LM Studio, vLLM) don't require a key, but the SDK
+// rejects an empty string — so send a placeholder when none is set. Presence of
+// credentials is validated at startup (see index.js), so there is no mock
+// fallback to worry about here.
+const client = new OpenAI({
+  apiKey: config.llm.apiKey || 'not-needed',
+  // Any OpenAI-compatible provider works: Groq, OpenRouter, Together, etc.
+  ...(config.llm.baseUrl ? { baseURL: config.llm.baseUrl } : {}),
+})
 
 /**
  * Ask the model for a JSON object and parse it. Uses OpenAI's JSON response
  * format so we never have to wrestle markdown code fences.
  */
 export async function chatJSON({ system, user, model, temperature = 0.2 }) {
-  if (isMock()) throw new Error('chatJSON called in mock mode')
-
   const completion = await client.chat.completions.create({
     model: model || config.llm.model,
     temperature,
@@ -49,8 +44,6 @@ export async function chatJSON({ system, user, model, temperature = 0.2 }) {
  * delta so the caller can forward it over SSE immediately.
  */
 export async function chatStream({ system, user, model, temperature = 0.4, onToken }) {
-  if (isMock()) throw new Error('chatStream called in mock mode')
-
   const stream = await client.chat.completions.create({
     model: model || config.llm.smartModel,
     temperature,
@@ -74,7 +67,6 @@ export async function chatStream({ system, user, model, temperature = 0.4, onTok
 
 /** Non-streaming completion, used for post-synthesis polish passes. */
 export async function chat({ system, user, model, temperature = 0.3 }) {
-  if (isMock()) throw new Error('chat called in mock mode')
   const completion = await client.chat.completions.create({
     model: model || config.llm.smartModel,
     temperature,

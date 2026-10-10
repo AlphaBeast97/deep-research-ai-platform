@@ -42,7 +42,7 @@ export function useResearch() {
       status: 'done',
       phase: null,
       statusMessage: '',
-      meta: record.mock ? { mock: true } : null,
+      meta: null,
       plan: {
         title: record.title,
         scope: record.scope,
