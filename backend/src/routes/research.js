@@ -1,6 +1,7 @@
 import { getAuth } from '@clerk/express'
 import { Router } from 'express'
 import { runResearch } from '../agents/orchestrator.js'
+import { REPORT_TYPES } from '../agents/reportTypes.js'
 import * as db from '../db/index.js'
 
 const router = Router()
@@ -22,6 +23,16 @@ router.use((req, res, next) => {
 })
 
 /**
+ * GET /api/research/types
+ * The report types the user can choose from. Declared before `/:id` so it is
+ * not swallowed by the report-lookup route. Only metadata is returned — the
+ * prompt text behind each type stays on the server.
+ */
+router.get('/types', (_req, res) => {
+  res.json({ types: REPORT_TYPES })
+})
+
+/**
  * POST /api/research/stream
  * Runs the agent pipeline and streams progress as Server-Sent Events.
  * We use POST (not the usual GET) so the topic can travel in a JSON body.
@@ -34,6 +45,14 @@ router.post('/stream', async (req, res) => {
   }
   if (query.length > 500) {
     res.status(400).json({ error: 'Research topic is too long (max 500 chars).' })
+    return
+  }
+
+  // An unknown type is rejected loudly rather than silently defaulting, so a
+  // typo in an API call is visible instead of producing the wrong deliverable.
+  const reportType = (req.body?.reportType || '').trim()
+  if (reportType && !REPORT_TYPES.some((t) => t.id === reportType)) {
+    res.status(400).json({ error: `Unknown reportType: ${reportType}` })
     return
   }
 
@@ -62,7 +81,7 @@ router.post('/stream', async (req, res) => {
   })
 
   try {
-    await runResearch({ query, ownerId: req.userId, onEvent: send })
+    await runResearch({ query, ownerId: req.userId, reportType, onEvent: send })
   } catch (err) {
     console.error('[research] pipeline error:', err)
     send({ type: 'error', message: err.message || 'Research failed unexpectedly.' })

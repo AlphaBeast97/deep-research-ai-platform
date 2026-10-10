@@ -288,7 +288,8 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
 | Method | Route | Auth | Description |
 | --- | --- | --- | --- |
 | `GET` | `/api/health` | public | Mode, storage driver, models, depth knobs, missing keys |
-| `POST` | `/api/research/stream` | ✅ | Run the pipeline, stream SSE events. Body: `{ "query": "..." }` |
+| `POST` | `/api/research/stream` | ✅ | Run the pipeline, stream SSE events. Body: `{ "query": "...", "reportType": "analyst" }` |
+| `GET` | `/api/research/types` | ✅ | The selectable report formats (metadata only — no prompt text) |
 | `GET` | `/api/research` | ✅ | The caller's report history (newest first, summaries) |
 | `GET` | `/api/research/:id` | ✅ | Full stored report (only if the caller owns it) |
 | `DELETE` | `/api/research/:id` | ✅ | Delete one of the caller's reports |
@@ -297,7 +298,7 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
 
 | Event | Payload | Purpose |
 | --- | --- | --- |
-| `meta` | `{ query, model, smartModel, depth, critique, deepFetch, maxRounds }` | Run begins; reports the active model + depth settings |
+| `meta` | `{ query, model, smartModel, depth, critique, deepFetch, maxRounds, reportType }` | Run begins; reports the active model, depth settings and chosen format |
 | `phase` | `{ phase }` | Entering a phase (`plan`/`research`/`draft`/`critique`/`revision`/`audit`). Durations land in the record's `phases[]` |
 | `status` | `{ message }` | Human-readable progress line |
 | `plan` | `{ title, scope, subQuestions }` | Planner output |
@@ -315,6 +316,10 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
 
 ## Features
 
+- **Six report formats** — pick the deliverable before you run: analyst report,
+  executive brief, comparison, timeline, risk assessment, or evidence review. Each
+  one changes the report's **structure and writing stance**, not just its length —
+  a risk register and a chronology answer different questions about the same topic.
 - **Accounts & private history** — sign in with Clerk; every report is owned by
   one user and history is scoped to them.
 - **Six-phase pipeline with iterative depth** — the researcher loops on its own:

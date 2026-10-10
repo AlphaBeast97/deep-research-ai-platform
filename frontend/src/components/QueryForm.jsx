@@ -1,5 +1,6 @@
 import { useState } from 'react'
 import Button from './ui/Button.jsx'
+import { cn } from '../lib/cn.js'
 
 const EXAMPLES = [
   'The state of solid-state batteries in 2026',
@@ -8,7 +9,14 @@ const EXAMPLES = [
   'Long-term effects of remote work on cities',
 ]
 
-export default function QueryForm({ onRun, onStop, running }) {
+export default function QueryForm({
+  onRun,
+  onStop,
+  running,
+  reportTypes = [],
+  reportType,
+  onReportTypeChange,
+}) {
   const [value, setValue] = useState('')
 
   const submit = (e) => {
@@ -17,6 +25,8 @@ export default function QueryForm({ onRun, onStop, running }) {
     if (!trimmed || running) return
     onRun(trimmed)
   }
+
+  const selected = reportTypes.find((t) => t.id === reportType)
 
   return (
     <form
@@ -43,6 +53,39 @@ export default function QueryForm({ onRun, onStop, running }) {
           </Button>
         )}
       </div>
+
+      {/* ── Output format ────────────────────────────────────── */}
+      {reportTypes.length > 0 && (
+        <div className="mt-3.5">
+          <div className="flex flex-wrap items-center gap-[7px]">
+            <span className="mr-0.5 text-xs font-semibold tracking-[0.06em] text-muted uppercase">
+              Output
+            </span>
+            {reportTypes.map((type) => {
+              const active = type.id === reportType
+              return (
+                <button
+                  key={type.id}
+                  type="button"
+                  disabled={running}
+                  aria-pressed={active}
+                  title={type.blurb}
+                  onClick={() => onReportTypeChange?.(type.id)}
+                  className={cn(
+                    'rounded-full border px-3 py-[5px] text-xs transition-colors disabled:opacity-60',
+                    active
+                      ? 'border-accent bg-accent/15 font-semibold text-accent'
+                      : 'border-line-soft bg-surface-2 text-muted hover:border-accent hover:text-strong',
+                  )}
+                >
+                  {type.label}
+                </button>
+              )
+            })}
+          </div>
+          {selected && <p className="mt-2 text-xs text-muted">{selected.blurb}</p>}
+        </div>
+      )}
 
       {!running && (
         <div className="mt-3 flex flex-wrap items-center gap-[7px]">

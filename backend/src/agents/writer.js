@@ -1,14 +1,19 @@
 import { chatStream } from '../llm.js'
 import config from '../config.js'
-import { REVISER_SYSTEM, WRITER_SYSTEM, reviserUser, writerUser } from './prompts.js'
+import { reviserSystem, reviserUser, writerSystem, writerUser } from './prompts.js'
+import { resolveReportType } from './reportTypes.js'
 
 /**
  * Writer agent — synthesizes all researcher output into one streamed report.
  * Tokens are pushed through `onToken` so the UI renders the report live.
+ *
+ * The report type chosen by the user selects the structure and the writing
+ * stance; everything else about the prompt is shared.
  */
-export async function writeDraft({ query, plan, research, sources, rounds, onToken }) {
+export async function writeDraft({ query, plan, research, sources, rounds, reportType, onToken }) {
+  const type = resolveReportType(reportType)
   return chatStream({
-    system: WRITER_SYSTEM,
+    system: writerSystem(type),
     user: writerUser(query, plan, research, sources, rounds),
     model: config.llm.smartModel,
     temperature: 0.5,
@@ -28,10 +33,12 @@ export async function reviseReport({
   sources,
   draft,
   critique,
+  reportType,
   onToken,
 }) {
+  const type = resolveReportType(reportType)
   return chatStream({
-    system: REVISER_SYSTEM,
+    system: reviserSystem(type),
     user: reviserUser(query, plan, research, sources, draft, critique),
     model: config.llm.smartModel,
     temperature: 0.35,

@@ -13,6 +13,8 @@ const reportSchema = new mongoose.Schema(
     ownerId: { type: String, required: true, index: true },
     query: String,
     title: String,
+    // Which deliverable the user asked for (see agents/reportTypes.js).
+    reportType: String,
     scope: String,
     status: String,
     createdAt: { type: Date, default: Date.now },

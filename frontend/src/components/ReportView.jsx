@@ -25,6 +25,7 @@ export default function ReportView({
   critique,
   audit,
   sources = [],
+  typeLabel,
 }) {
   const containerRef = useRef(null)
   const [copied, setCopied] = useState(false)
@@ -102,6 +103,7 @@ export default function ReportView({
       <p className="text-xs text-muted">
         {words} words
         {durationMs ? ` · ${(durationMs / 1000).toFixed(1)}s` : ''}
+        {typeLabel ? ` · ${typeLabel}` : ''}
       </p>
 
       {/* ── integrity summary ───────────────────────────────── */}

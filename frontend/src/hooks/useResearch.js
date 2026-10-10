@@ -60,7 +60,7 @@ export function useResearch() {
   }, [])
 
   const run = useCallback(
-    async (query) => {
+    async (query, reportType) => {
       abortRef.current?.abort()
       const controller = new AbortController()
       abortRef.current = controller
@@ -119,7 +119,7 @@ export function useResearch() {
         })
 
       try {
-        await streamResearch(query, { onEvent: apply, signal: controller.signal })
+        await streamResearch(query, { reportType, onEvent: apply, signal: controller.signal })
         setState((s) =>
           s.status === 'running'
             ? {

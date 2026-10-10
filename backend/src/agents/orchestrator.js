@@ -8,6 +8,7 @@ import * as followups from './followups.js'
 import * as critic from './critic.js'
 import * as writer from './writer.js'
 import { auditCitations, sanitizeCitations } from './citations.js'
+import { resolveReportType } from './reportTypes.js'
 
 export const wordCount = (text) => (text.trim() ? text.trim().split(/\s+/).length : 0)
 
@@ -23,7 +24,11 @@ export const wordCount = (text) => (text.trim() ? text.trim().split(/\s+/).lengt
  *   meta | phase | status | plan | step | sources | findings | token
  *   critique | report-reset | audit | done | error
  */
-export async function runResearch({ query, ownerId, onEvent = () => {} }) {
+export async function runResearch({ query, ownerId, reportType, onEvent = () => {} }) {
+  // The chosen report type drives the writer's structure and stance. Resolved
+  // once here so an unknown or missing value degrades to the default instead of
+  // reaching a prompt as `undefined`.
+  const type = resolveReportType(reportType)
   const runId = randomUUID()
   const startedAt = Date.now()
 
@@ -212,6 +217,7 @@ export async function runResearch({ query, ownerId, onEvent = () => {} }) {
     critique: config.research.critique,
     deepFetch: config.research.deepFetch,
     maxRounds: config.research.maxRounds,
+    reportType: type.id,
     query,
   })
 
@@ -254,6 +260,7 @@ export async function runResearch({ query, ownerId, onEvent = () => {} }) {
     research,
     sources,
     rounds: totalRounds,
+    reportType: type.id,
     onToken: (text) => emit({ type: 'token', text }),
   })
   logStep('writer', 'Draft complete', `${wordCount(draft)} words`)
@@ -312,6 +319,7 @@ export async function runResearch({ query, ownerId, onEvent = () => {} }) {
         sources,
         draft,
         critique,
+        reportType: type.id,
         onToken: (text) => emit({ type: 'token', text }),
       })
 
@@ -367,6 +375,7 @@ export async function runResearch({ query, ownerId, onEvent = () => {} }) {
     ownerId,
     query,
     title: plan.title,
+    reportType: type.id,
     scope: plan.scope || '',
     status: 'complete',
     createdAt: new Date().toISOString(),

@@ -13,6 +13,7 @@ import {
   deleteReport,
   fetchHealth,
   fetchReport,
+  fetchReportTypes,
   fetchReports,
   setAuthTokenGetter,
 } from './api.js'
@@ -23,13 +24,15 @@ const TABS = ['sources', 'history']
 function ResearchApp() {
   const { getToken } = useAuth()
   const research = useResearch()
-  const { status, phase, steps, plan, sources, report, record, critique, audit, error } =
+  const { status, phase, steps, plan, sources, report, record, meta, critique, audit, error } =
     research
   const running = status === 'running'
 
   const [health, setHealth] = useState(null)
   const [history, setHistory] = useState([])
   const [tab, setTab] = useState('sources')
+  const [reportTypes, setReportTypes] = useState([])
+  const [reportType, setReportType] = useState('')
 
   // Hand the API layer a fresh session token for every request.
   useEffect(() => {
@@ -61,6 +64,16 @@ function ResearchApp() {
       } catch {
         /* history is non-critical */
       }
+      try {
+        const types = await fetchReportTypes()
+        if (!cancelled && types.length) {
+          setReportTypes(types)
+          // Default to the first (the long-form analyst report).
+          setReportType((current) => current || types[0].id)
+        }
+      } catch {
+        /* format list is non-critical — the backend applies its own default */
+      }
     }
     load()
     return () => {
@@ -70,7 +83,7 @@ function ResearchApp() {
 
   const onRun = async (query) => {
     setTab('sources')
-    await research.run(query)
+    await research.run(query, reportType)
     refreshHistory()
   }
 
@@ -89,6 +102,11 @@ function ResearchApp() {
   }
 
   const hasRun = steps.length > 0 || Boolean(report)
+
+  // Prefer the stored record's type, then the in-flight meta event, then the
+  // current selection — so the label is right while running and after reload.
+  const activeTypeId = record?.reportType || meta?.reportType || reportType
+  const activeTypeLabel = reportTypes.find((t) => t.id === activeTypeId)?.label
 
   return (
     <div className="mx-auto max-w-[1320px] px-6 pt-7 pb-14">
@@ -111,7 +129,14 @@ function ResearchApp() {
         </div>
       </header>
 
-      <QueryForm onRun={onRun} onStop={research.stop} running={running} />
+      <QueryForm
+        onRun={onRun}
+        onStop={research.stop}
+        running={running}
+        reportTypes={reportTypes}
+        reportType={reportType}
+        onReportTypeChange={setReportType}
+      />
 
       {error && (
         <div className="mb-4 rounded-control border border-danger/35 bg-danger/10 px-[15px] py-3 text-[13.5px] text-danger">
@@ -139,6 +164,7 @@ function ResearchApp() {
             critique={critique}
             audit={audit}
             sources={sources}
+            typeLabel={activeTypeLabel}
           />
         </div>
 

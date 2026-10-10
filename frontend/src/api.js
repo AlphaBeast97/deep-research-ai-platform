@@ -27,11 +27,13 @@ async function authHeaders(extra = {}) {
  * POST request, so we read the response body as a stream and parse
  * `data: {...}\n\n` frames ourselves (EventSource can't send a POST body).
  */
-export async function streamResearch(query, { onEvent, signal } = {}) {
+export async function streamResearch(query, { reportType, onEvent, signal } = {}) {
   const res = await fetch(`${API_BASE}/api/research/stream`, {
     method: 'POST',
     headers: await authHeaders({ 'Content-Type': 'application/json' }),
-    body: JSON.stringify({ query }),
+    // `reportType` is dropped by JSON.stringify when undefined, which leaves the
+    // backend free to apply its own default.
+    body: JSON.stringify({ query, reportType }),
     signal,
   })
 
@@ -80,6 +82,14 @@ export async function fetchHealth() {
   const res = await fetch(`${API_BASE}/api/health`)
   if (!res.ok) throw new Error('Backend unreachable')
   return res.json()
+}
+
+/** The selectable report formats (metadata only — no prompt text). */
+export async function fetchReportTypes() {
+  const res = await fetch(`${API_BASE}/api/research/types`, { headers: await authHeaders() })
+  if (!res.ok) throw new Error('Could not load report types')
+  const body = await res.json()
+  return body.types ?? []
 }
 
 export async function fetchReports() {

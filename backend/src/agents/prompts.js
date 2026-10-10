@@ -164,7 +164,7 @@ export const followUpUser = (question, extraction, alreadyAsked, max) => {
 //  Writer / revisor — one shared report specification
 // ─────────────────────────────────────────────────────────────
 
-const REPORT_SPEC = `Structure (GitHub-flavoured Markdown):
+export const ANALYST_SPEC = `Structure (GitHub-flavoured Markdown):
 1. A single H1 title.
 2. "## Scope & method" — 2-4 sentences: what was investigated, how many
    sub-questions were researched, how many sources were consulted, and what is
@@ -183,9 +183,73 @@ const REPORT_SPEC = `Structure (GitHub-flavoured Markdown):
 7. "## Confidence & evidence quality" — for the major claims, say how strong the
    evidence is and why (primary vs secondary, corroborated vs single-source,
    recent vs dated). Use the per-finding confidence the researchers recorded.
-8. "## Limitations & open questions" — what this research could not establish.
+8. "## Limitations & open questions" — what this research could not establish.`
 
-Detail requirements:
+export const BRIEF_SPEC = `Structure (GitHub-flavoured Markdown):
+1. A single H1 title.
+2. "## Bottom line" — 2-3 sentences answering the question up front, each carrying
+   its citation. No preamble.
+3. "## Key findings" — 4-6 bullets, each a complete, quotable fact with a citation.
+4. "## What to watch" — 2-4 bullets naming the signals that would change the picture.
+5. At most one small table, and only if it carries the comparison better than prose.
+6. "## Limitations" — 2-3 bullets on what this brief could not establish.
+Keep the whole brief under about 600 words. There is no methodology section.`
+
+export const COMPARISON_SPEC = `Structure (GitHub-flavoured Markdown):
+1. A single H1 title.
+2. "## The options compared" — name the options and say why these are the ones
+   worth comparing.
+3. "## Comparison table" — one row per option, one column per shared dimension the
+   findings actually support. Every cell carries a figure or the phrase "not
+   established"; never leave a cell blank and never invent a value to fill it.
+4. One "##" section per comparison dimension, explaining how the options differ
+   and citing the sources for each difference.
+5. "## Where the evidence conflicts" — the dimensions where sources disagree.
+6. "## Verdict" — which option leads on which dimension and on what basis. Do not
+   declare an overall winner the sources do not support; say so if they do not.
+7. "## Confidence & limitations" — how strong the comparison is and what is missing.`
+
+export const TIMELINE_SPEC = `Structure (GitHub-flavoured Markdown):
+1. A single H1 title.
+2. "## Overview" — the arc of the story in 2-4 sentences, with citations.
+3. "## Timeline" — chronological entries, oldest first, formatted as
+   "**<date>** — <what happened> [n]". Include only dates the sources state;
+   write "undated" rather than inferring one.
+4. One or two "##" sections on the drivers behind the sequence — why it unfolded
+   in this order rather than another.
+5. A single Mermaid "timeline" diagram of the key milestones.
+6. "## Where the evidence conflicts" — dates or attributions the sources dispute.
+7. "## What's next" — the indicated trajectory, with the uncertainty stated.
+8. "## Confidence & limitations"`
+
+export const RISK_SPEC = `Structure (GitHub-flavoured Markdown):
+1. A single H1 title.
+2. "## Summary of exposure" — 2-4 sentences on what is actually at risk and to whom.
+3. "## Risk register" — a table with the columns Risk | Likelihood | Impact |
+   Evidence | Mitigation. Likelihood and impact must reflect what the sources
+   support; write "not established" where they do not quantify it. Never invent a
+   probability or a score.
+4. One "##" section per material risk, explaining the mechanism by which it would
+   cause harm, with citations.
+5. "## Unknowns & blind spots" — risks the sources could not quantify or refused
+   to discuss, and what that silence might mean.
+6. "## Confidence & limitations"`
+
+export const EVIDENCE_SPEC = `Structure (GitHub-flavoured Markdown):
+1. A single H1 title.
+2. "## Scope & method" — what body of evidence was searched and its limits.
+3. "## What is established" — claims with strong, corroborated support, each cited.
+4. "## What is contested" — claims sources disagree on, naming which source takes
+   which position. Do not average them into a hedge.
+5. "## What is weakly supported" — single-source, dated, or low-confidence claims
+   that are repeated as if settled.
+6. "## Gaps in the evidence" — questions no source in the set answers.
+7. A table of the key sources with their position and the strength of their
+   evidence (primary vs secondary, corroborated vs single-source, date).
+8. "## Confidence & limitations"`
+
+// Rules shared by every report type, appended to the chosen structure.
+const SHARED_RULES = `Detail requirements:
 - Prefer the concrete over the general. "Costs are falling" is worthless;
   "cell costs fell from ~$140/kWh to ~$100/kWh between 2023 and 2025 [1]" is a
   finding. Carry over numbers, dates, named entities, specs and units.
@@ -212,17 +276,15 @@ Diagram rules (Mermaid):
 - Never nest one diagram inside another fence and never invent a Mermaid diagram
   type that does not exist.`
 
-export const WRITER_SYSTEM = `You are the WRITER agent of a deep-research system.
+export const writerSystem = ({ style, spec }) => `You are the WRITER agent of a deep-research system.
 You receive a research topic, the plan, and structured findings gathered by
 researcher agents, each backed by numbered sources.
 
-Write a rigorous, long-form analyst report — the kind a professional would be
-comfortable circulating — in GitHub-flavoured Markdown.
+${style}
 
-${REPORT_SPEC}
+${spec}
 
-Style: authoritative, neutral, specific, and dense. Assume an intelligent reader
-who wants the substance, not the summary.`
+${SHARED_RULES}`
 
 export const writerUser = (query, plan, research, sources, rounds) => {
   const sourceList = sources
@@ -334,7 +396,7 @@ export const criticUser = (query, research, sources, draft) => {
 //  Revisor — applies the critique and produces the final report
 // ─────────────────────────────────────────────────────────────
 
-export const REVISER_SYSTEM = `You are the WRITER agent producing the FINAL revision of a
+export const reviserSystem = ({ spec }) => `You are the WRITER agent producing the FINAL revision of a
 research report after a CRITIC agent audited your first draft.
 
 You receive the topic, the plan, the gathered findings, the numbered sources,
@@ -353,7 +415,9 @@ Rules:
 - Do not mention the critique, the revision process, or that you are an AI. The
   output must read as a finished report.
 
-${REPORT_SPEC}`
+${spec}
+
+${SHARED_RULES}`
 
 export const reviserUser = (query, plan, research, sources, draft, critique) => {
   const issues = (critique.issues || [])
