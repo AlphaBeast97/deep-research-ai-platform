@@ -41,16 +41,17 @@ to change it.
 ## 1. What this is
 
 A web application that takes a single research question and produces a **cited,
-streamed Markdown report** by orchestrating a small pipeline of LLM "agents":
+streamed, long-form analyst report** by orchestrating a six-phase pipeline of LLM "agents":
 
 ```
-topic  ─►  PLAN  ─►  SEARCH + EXTRACT (× N)  ─►  SYNTHESISE  ─►  cited report
+topic ─► PLAN ─► [ SEARCH ─► READ ─► EXTRACT ─► (GAP? ⟲) ] × N ─► DRAFT ─► CRITIQUE ─► REVISE ─► AUDIT ─► cited report
 ```
 
 The distinguishing property is not that it calls a model — it's that the user
-**watches the agents work**: planning, searching, reading, and writing appear in
-real time, and every factual claim in the final report carries a numbered citation
-that links to a source card.
+**watches the agents work**: planning, searching, reading, self-critiquing, and writing
+appear in real time, every factual claim in the final report carries a numbered citation
+that links to a source card, and the report is **audited for citation integrity** before it
+is returned.
 
 **One sentence of positioning:** *a transparent, self-hostable research assistant that
 works with any LLM provider and degrades gracefully to a demo mode when unconfigured.*
@@ -63,7 +64,7 @@ works with any LLM provider and degrades gracefully to a demo mode when unconfig
 
 | # | Goal | How it is met | Where |
 |---|---|---|---|
-| G1 | Multi-agent pipeline, not one giant prompt | 3 distinct agent roles with separate prompts | `backend/src/agents/` |
+| G1 | Multi-agent pipeline, not one giant prompt | 5 agent roles over 6 pipeline phases, each with its own prompt | `backend/src/agents/` |
 | G2 | **Live** agent trace in the UI | Server-Sent Events, one event per unit of progress | `routes/research.js`, `useResearch.js` |
 | G3 | Grounded citations | sources numbered at retrieval; claims carry `[n]` | `orchestrator.js`, `prompts.js` |
 | G4 | Sources are inspectable | side panel with title, host, snippet, score | `SourcesPanel.jsx` |
@@ -210,7 +211,10 @@ flowchart TD
     subgraph Agents
         PLAN["agents/planner.js"]
         RES["agents/researcher.js"]
-        WRITE["agents/writer.js"]
+        WRITE["agents/writer.js<br/>draft + revise"]
+        FOLLOW["agents/followups.js<br/>gap queries"]
+        CRIT["agents/critic.js"]
+        CITE["agents/citations.js<br/>(pure, no LLM)"]
         PROMPT["agents/prompts.js<br/>(pure strings)"]
         MOCK["agents/mock.js<br/>canned data"]
     end
@@ -232,15 +236,21 @@ flowchart TD
     ROUTES --> ORCH
     ROUTES --> DB
     ORCH --> PLAN & RES & WRITE
+    ORCH --> FOLLOW & CRIT & CITE
     ORCH --> MOCK
     ORCH --> DB
     PLAN --> LLM
     RES --> LLM
     WRITE --> LLM
+    FOLLOW --> LLM
+    CRIT --> LLM
     PLAN --> PROMPT
     RES --> PROMPT
     WRITE --> PROMPT
+    FOLLOW --> PROMPT
+    CRIT --> PROMPT
     RES --> SEARCH
+    ORCH --> SEARCH
     DB --> FS & MG
     LLM --> CFG
     SEARCH --> CFG
@@ -256,6 +266,9 @@ flowchart TD
    exercised without binding a port. See [ADR-20](#adr-20-app-factory-separate-from-bootstrap).
 3. `mock.js` is a leaf that only orchestrator imports. Canned data never leaks into the live
    path, and the orchestrator stays about *flow* rather than fixtures.
+4. `citations.js` is **pure**: it takes a report string and the source list and returns an
+   audit object. It touches no network, no LLM, and no storage — which is what makes the
+   citation guarantee testable (and why the audit phase costs ~2 ms, see [§7.8](#78-the-citation-audit)).
 
 ### 6.2 Why `agents/` and `services/` are separate directories
 
@@ -312,14 +325,17 @@ Consequences, all intentional:
 
 ## 7. The agent pipeline
 
-### 7.1 The three agents
+### 7.1 The pipeline, in six phases
+
+A run is not "plan → research → write". It is a six-phase pipeline with a gap-filling loop
+and a mandatory revision pass:
 
 ```mermaid
 flowchart TD
     Q["Research topic"] --> P
 
-    subgraph P["① PLANNER — smart model"]
-        P1["Decompose into 3–6<br/>independent, searchable<br/>sub-questions + title"]
+    subgraph P["① PLAN — smart model"]
+        P1["Decompose into 5–8<br/>sub-questions, each with<br/>an intent + theme,<br/>plus a scope statement"]
     end
 
     P --> R
@@ -327,27 +343,59 @@ flowchart TD
     subgraph R["② RESEARCHER — cheap model, × N"]
         R1["Tavily search<br/>(advanced depth)"]
         R2["Normalise + dedupe<br/>+ number sources"]
-        R3["Extract findings,<br/>each with cites:[n]"]
-        R1 --> R2 --> R3
+        R3["Read full pages<br/>(Tavily extract)"]
+        R4["Extract findings + cites:[n]<br/>+ per-finding confidence<br/>+ coverage 0–100"]
+        R1 --> R2 --> R3 --> R4
     end
 
-    R --> W
+    R --> GAP{"coverage<br/>below floor?"}
+    GAP -->|"yes + rounds left"| FU["FOLLOW-UP PROPOSAL<br/>gap-targeted queries"]
+    FU --> R1
 
-    subgraph W["③ WRITER — smart model, streamed"]
-        W1["Synthesise all findings<br/>into Markdown with<br/>inline [n] citations"]
+    GAP -->|"no"| W
+
+    subgraph W["③ DRAFT — smart model, streamed"]
+        W1["Synthesise all findings into<br/>an analyst report with<br/>inline [n] citations + diagrams"]
     end
 
-    W --> SAVE["Persist record"]
+    W --> C
+
+    subgraph C["④ CRITIQUE — smart model"]
+        C1["Audit the draft: uncited claims,<br/>overreach, contradictions,<br/>missing angles, structure"]
+    end
+
+    C --> RV
+
+    subgraph RV["⑤ REVISE — smart model, streamed"]
+        RV1["Apply every issue and<br/>re-emit the full report"]
+    end
+
+    RV --> AU
+
+    subgraph AU["⑥ AUDIT — pure code, no LLM"]
+        AU1["Verify every [n] resolves;<br/>drop unresolvable numbers"]
+    end
+
+    AU --> SAVE["Persist record"]
 ```
 
-| Agent | Model tier | Calls per run | Input | Output (JSON shape) |
+| Phase | Model tier | Calls per run | Input | Output (JSON shape) |
 |---|---|---|---|---|
-| **Planner** | `LLM_MODEL_SMART` | 1 | topic + max count | `{ title, subQuestions: [{question, intent}] }` |
-| **Researcher** | `LLM_MODEL` | N (≈5) | one sub-question + numbered sources | `{ summary, findings: [{point, cites[]}], gaps[] }` |
-| **Writer** | `LLM_MODEL_SMART` | 1 (streamed) | topic + plan + all findings + source list | Markdown text |
+| **① Plan** | `LLM_MODEL_SMART` | 1 | topic + max count | `{ title, scope, subQuestions: [{question, intent, theme}] }` |
+| **② Research** | `LLM_MODEL` | N (≈5) + F follow-ups | one sub-question + numbered sources (+ full page text) | `{ summary, coverage: 0–100, findings: [{point, cites[], confidence}], gaps[] }` |
+| **③ Draft** | `LLM_MODEL_SMART` | 1 (streamed) | topic + plan + all findings + source list | Markdown (analyst report + Mermaid) |
+| **④ Critique** | `LLM_MODEL_SMART` | 1 | the draft + the citation whitelist | `{ verdict, issues[], citationProblems[], recommendations[] }` |
+| **⑤ Revise** | `LLM_MODEL_SMART` | 1 (streamed) | the draft + the critique | revised Markdown |
+| **⑥ Audit** | *none* | 0 | final report + sources | `{ references, coverage, invalid[], uncited[], invalidRemoved }` |
 
-**Total external calls per deep run:** 1 search + 1 LLM call per sub-question, plus 2 LLM
-calls. With defaults (`MAX_SUBQUESTIONS=5`): **5 searches + 7 LLM calls**.
+**Total external calls per deep run:** `1 + N` to `1 + N + F` searches and `3 + N + F` to
+`5 + N + F` LLM calls. With defaults (`MAX_SUBQUESTIONS=5`, `RESEARCH_MAX_ROUNDS=2`) that is
+**up to 13 searches and 17 LLM calls**. The measured run in
+[§15.1](#151-end-to-end-live-run) used 13 searches and 13 LLM calls for a 1,491-word report.
+
+The phases are not merely a diagram: they are emitted as `phase` events with measured
+durations, so the UI can show which stage is running and the record carries a phase
+timeline ([§9.3](#93-event-taxonomy), [§19](#19-performance-where-the-time-goes)).
 
 ### 7.2 Why the model tiers are split
 
@@ -398,19 +446,135 @@ numbering, so the same page found for two sub-questions cannot occupy two slots.
 **Why this matters:** without a stable index there is no way to make `[2]` in the final
 report reliably point at source card 2. Every downstream guarantee rests on this one rule.
 
+### 7.5 The gap-filling loop (iterative depth)
+
+One search per sub-question is a *breadth-first* strategy: it never goes back to a facet it
+under-served. The researcher is therefore asked to output an honest `coverage` estimate
+(0–100) alongside its findings, and the orchestrator compares that number to a floor:
+
+```
+round = 0
+while round < 1 + RESEARCH_MAX_ROUNDS:
+    extract(...)
+    if coverage >= COVERAGE_FLOOR: break
+    queries = proposeQueries(subQuestion, alreadyAsked, gaps)   # skip if empty
+    if queries.empty: break
+    alreadyAsked += queries
+    search(queries) + extract(them)
+    round += 1
+```
+
+Four deliberate properties of this loop:
+
+1. **The model estimates its own coverage, and `coverage: 0` is the fallback for an empty
+   result** — so a failed search and a genuinely thin topic both look like "gaps", which is
+   what they are.
+2. **Follow-up queries are deduplicated against everything already asked**
+   (`alreadyAsked`), so round two cannot re-run round one's searches.
+3. **An empty follow-up list is a legal answer.** The prompt explicitly permits `[]`, and
+   the loop breaks on it. Iteration is bounded by evidence, not by a turn counter.
+4. **The bound is `1 + RESEARCH_MAX_ROUNDS`** — `RESEARCH_MAX_ROUNDS=0` disables the loop
+   entirely, giving back the original single-pass behaviour with one env var.
+
+In the measured live run the gap loop fired **4 times** across 5 sub-questions and added 8
+follow-up searches ([§15.1](#151-end-to-end-live-run)) — that is where most of the run's
+~113 s research phase went.
+
+### 7.6 Deep fetch — reading pages, not just snippets
+
+A Tavily search result is a ~800-character snippet. That is enough to *find* a source and
+occasionally enough to cite it, but it is a poor basis for a dense analyst report. When
+`DEEP_FETCH=true`, the orchestrator takes the top `DEEP_FETCH_SOURCES` URLs for a
+sub-question and calls Tavily's `extract` endpoint, which returns the **full page text** as
+markdown:
+
+```js
+const pages = await fetchPages(urls)   // Map<url, text>, failures dropped
+```
+
+Two rules keep this from blowing up the prompt (and the bill):
+
+| Rule | Reason |
+|---|---|
+| **Cap the count** (`DEEP_FETCH_SOURCES`, 0–8, default 3) | Full pages are an order of magnitude larger than snippets; reading 6 URLs per sub-question × 6 sub-questions would be enormous |
+| **Cap each page** (`MAX_PAGE_CHARS = 6000`) | One 300 KB spec sheet must not crowd out every other source |
+
+**Page text is run-scoped and never persisted.** It lives in a `Map` inside the orchestrator,
+is used only to build researcher prompts, and dies with the run. This matters for two
+reasons: the stored record stays small and safe to send to the client, and the raw page text
+of arbitrary websites never becomes part of a durable document.
+
+### 7.7 Critique and the always-on revision
+
+The draft is written by the same model family that would have to notice its own mistakes, so
+the pipeline inserts a **separate** critique call with a hostile-auditor prompt, then a
+**revision** call that applies it. Three choices here are worth defending:
+
+- **The critique is structural, not stylistic.** It is asked for a typed JSON list —
+  `uncited`, `miscitation`, `overreach`, `contradiction`, `missing-angle`, `structure` —
+  each with a severity, the offending claim, the problem, and the fix. A review that returns
+  prose cannot be acted on reliably; a review that returns typed issues can.
+- **Revision runs whenever `RESEARCH_CRITIQUE=true`, regardless of the verdict.** This was
+  originally gated on the critic's own `verdict` field and that was a **bug**: in the first
+  measured run the critic returned `verdict: "solid"` *while also reporting two issues*, and
+  the gate skipped the revision pass entirely. A model's summary judgement about its own
+  review is the least reliable part of the review. The verdict is now recorded as information
+  for the reader; it is not a control-flow switch. ([ADR-21](#adr-21-the-critique-is-advisory-the-revision-is-unconditional))
+- **The revision is guarded and has a fallback.** If the revision call throws or produces an
+  implausibly short document (`wordCount < 120`), the pipeline keeps the draft and records
+  `revised: false` rather than shipping a truncated report. The revision is an improvement
+  step, and an improvement step must never be able to make the output worse than not running
+  it.
+
+The UI surfaces all of this honestly: the report carries the critique verdict and an
+"audited" block, and the issues themselves are available in a disclosure panel. A report
+that says "a critic reviewed this and here is what it found" is more trustworthy than one
+that implies no flaws exist.
+
+### 7.8 The citation audit
+
+After revision, one **pure** function checks the report against the sources:
+
+```js
+const audit = auditCitations(report, sources)
+// → { references, citedSourceCount, sourceCount, coverage,
+//     invalid[], uncited[], invalidRemoved }
+```
+
+`invalid[]` is every `[n]` in the report that does not resolve to a real source. Rather than
+only *reporting* these, the pipeline **sanitises** them: `sanitizeCitations` strips any
+unresolvable number (while preserving legitimate comma-lists like `[1, 4]`) and then
+re-audits, recording the count in `invalidRemoved`. The reason is a simple UX judgement — a
+citation chip that points nowhere is worse than no chip at all, because it looks like
+evidence. ([ADR-22](#adr-22-sanitise-citations-instead-of-only-reporting-them))
+
+Unlike the critique, this step involves no model and cannot be argued with: it is a regex
+pass over the final text plus a set lookup. It costs ~2 ms and removes an entire class of
+silently-broken output. `coverage` (cited ÷ total sources) and `uncited[]` are reported as
+is — a run that read 48 sources and cited 23 is a *fact* the reader should see, not
+a number worth gaming.
+
 ---
 
 ## 8. Prompt design
 
-All three system prompts live in `agents/prompts.js`. The design decisions inside them:
+Every system prompt lives in `agents/prompts.js` — a single file with no logic and no
+imports. There are seven: planner, researcher, follow-up proposal, writer, critic, reviser,
+and the shared `REPORT_SPEC` block the writer and reviser both consume.
 
 ### 8.1 The planner prompt
 
 - **"smallest set of independent, non-overlapping sub-questions"** — prevents the model
   from producing five variations of the same question, which would waste searches and
   produce a repetitive report.
-- **"Prefer 3 to 6 … Never exceed the stated maximum"** — the count is injected per-request
+- **"Prefer 5 to 8 … Never exceed the stated maximum"** — the count is injected per-request
   from `MAX_SUBQUESTIONS`, so the prompt and the code can't disagree.
+- **`intent` and `theme` per sub-question** — `intent` says what the investigation is trying
+  to establish; `theme` groups sub-questions so the writer can build thematic sections
+  instead of a flat list. Both are for the *writer*, not the searcher.
+- **A `scope` statement** — one sentence, carried into the report's `## Scope & method`
+  section. It is what makes exclusions ("legacy lead-acid chemistry is out of scope")
+  explicit instead of silent, which is the difference between a report and a dump.
 - **Breadth-then-depth guidance** — encodes a research methodology (background → current
   state → trade-offs → risks → outlook) rather than hoping the model invents one.
 - **"Do not write an answer. Only plan the investigation."** — stops the planner from
@@ -423,31 +587,119 @@ All three system prompts live in `agents/prompts.js`. The design decisions insid
   from Tavily: we want *raw sources*, not a pre-digested answer the model can copy.
 - **"Every finding must cite the source numbers"** — makes grounding *structural* rather
   than stylistic. Findings without citations are visibly malformed.
+- **A `confidence` label per finding** (`high` / `medium` / `low`) — the researcher sees the
+  sources and is the only party that can say how strongly one supports a claim. The value is
+  whitelisted in `researcher.js`, so a model that invents a fourth level cannot leak it
+  downstream.
+- **An honest `coverage` estimate (0–100)** — this is not decoration: it is the input to the
+  gap-filling loop in [§7.5](#75-the-gap-filling-loop-iterative-depth). Asking the model to
+  rate its own completeness is what lets the pipeline decide whether a second round is
+  warranted.
+- **"Prefer quantified findings — numbers, dates, named entities, magnitudes"** — a claim
+  with a number in it is checkable; a claim without one is an opinion with a citation glued
+  on.
 - **"If the sources are thin or contradictory, say so honestly in `gaps`"** — a dedicated
   output field for uncertainty. This is what surfaces the "no sources found" case honestly.
+- **When full page text is available it is passed through (`s.content`) instead of the
+  snippet** — prefixed `Search snippet:` only in the fallback case, so the model can tell
+  which it is looking at ([§7.6](#76-deep-fetch--reading-pages-not-just-snippets)).
 
-### 8.3 The writer prompt
+### 8.3 The writer prompt and `REPORT_SPEC`
 
-- **Explicit Markdown structure** (H1 → Executive Summary → H2 sections → Limitations) —
-  a fixed skeleton produces consistent, exportable documents regardless of provider.
-- **"group and reorder the sub-questions as needed rather than listing them mechanically"**
-  — prevents the classic "five headings, one per search" artifact. The reader gets a report,
-  not a transcript.
-- **"Where sources disagree, present the tension explicitly"** — a deliberate push against
-  the averaging/hedging behaviour models default to.
-- **Citation rules are marked "(critical)"**: only cite provided numbers, never invent one,
-  and **do not add a reference list**. That last rule is what lets the UI own reference
-  rendering entirely — see [ADR-13](#adr-13-citations-inline-no-reference-list).
-- **A "Diagram rules (Mermaid)" block** asks for one or two fenced ```` ```mermaid ```` blocks
+`writer.js` and `critic.js`'s reviser step share one exported `REPORT_SPEC` string, so the
+revision is guaranteed to target the same structure the draft was built against. It is a
+**long-form analyst** specification, not a summary. It fixes:
+
+1. `# ` title — the report's own headline, not the raw query.
+2. `## Scope & method` — what was investigated, what was deliberately excluded, how many
+   sources were consulted.
+3. `## Executive summary` — 4–7 bullets, each carrying citations.
+4. **4–8 thematic `##` sections** with `###` sub-sections, dense prose, and **GFM tables**
+   for any comparison. The single most important integrity rule here is:
+   **"write \"not established\" where a source does not say"** — an explicit, honest
+   placeholder instead of a plausible-looking invented cell.
+5. `## Where the evidence conflicts` — contradictions between sources are presented as
+   disagreements, not averaged away.
+6. `## Confidence & evidence quality` — per-theme confidence ratings grounded in the
+   researcher's labels.
+7. `## Limitations & open questions` — what the sources could not establish. This is
+   mandatory rather than optional, because a report that claims completeness is
+   *misleading*, and its absence is one of the things the critic checks for.
+
+Plus two cross-cutting rule blocks:
+
+- **Citation rules (critical)** — only cite provided numbers, never invent one, and **do not
+  add a reference list**. That last rule is what lets the UI own reference rendering
+  entirely — see [ADR-13](#adr-13-citations-inline-no-reference-list).
+- **Diagram rules (Mermaid)** — asks for one or two fenced ```` ```mermaid ```` blocks
   *where a process, comparison, cause-and-effect chain, timeline, or hierarchy is easier to
   grasp visually than in prose*. The constraints are all about **renderability**, because a
   diagram is only useful if it draws: prefer `flowchart`/`timeline`/`sequenceDiagram`, keep
   node labels short, and **quote any label containing `()`, `:`, `;` or `,`** — unquoted
   punctuation is the single most common cause of a Mermaid parse error. The measured result
-  (2 valid diagrams in a 721-word report) is in [§15.4](#154-what-could-not-be-verified).
+  (valid diagrams in a 1,491-word report) is in
+  [§15.4](#154-what-could-not-be-verified).
 - **Why "where it helps" rather than "include a diagram"**: an unconditional instruction
   produces a diagram on every report, including ones where it is filler. Tying it to the
   shape of the content keeps the feature honest.
+
+**The `REPORT_SPEC` extraction is itself a decision:** the structure exists once, as a
+string, and both the draft and the revision are built from it. If the two prompts each
+carried their own copy of the skeleton, the revision could silently "improve" the report
+into a different shape than the critic audited.
+
+The writer-specific design notes:
+
+- **Explicit Markdown structure** (the skeleton above) — a fixed structure produces
+  consistent, exportable documents regardless of provider.
+- **"group and reorder the sub-questions as needed rather than listing them mechanically"**
+  — prevents the classic "five headings, one per search" artifact. The reader gets a report,
+  not a transcript.
+- **"Where sources disagree, present the tension explicitly"** — a deliberate push against
+  the averaging/hedging behaviour models default to.
+
+### 8.4 The follow-up prompt
+
+Used only by the gap-filling loop. Its whole job is to convert a *known deficiency* into
+*new, non-repeating queries*:
+
+- **It receives the gaps and the `alreadyAsked` list, and "never repeat a query already
+  asked"** — the deduplication is enforced at the prompt level *and* re-enforced in code
+  (`followups.js` filters the returned list), because prompt-only constraints are advisory.
+- **An empty list is explicitly permitted** — otherwise a model asked for queries twice will
+  invent filler to look useful, and the loop would run to its bound on noise.
+- **The step is counted in token usage** and reported as a `usage` delta, so the cost of
+  iterating is attributable rather than invisible.
+
+### 8.5 The critic prompt
+
+The critic is the pipeline's adversarial reviewer, and the prompt is written to make an
+*empty* review the exception rather than the default:
+
+- **It is told outright that "an empty critique is the exception, not the norm."** Models
+  default to approval when asked "is this any good?"; the prompt pre-empts that by framing
+  the task as *finding* problems and by listing the categories to look for.
+- **Typed output** — `uncited`, `miscitation`, `overreach`, `contradiction`, `missing-angle`,
+  `structure` — each with `severity`, `claim`, `problem`, `fix`. Typed issues can be applied
+  mechanically by the reviser; prose review cannot.
+- **It is given the citation whitelist**, so "this citation is out of range" is a check the
+  model can actually perform rather than hallucinate.
+- **It may conclude that a criticism is unfounded.** In the measured run the critic raised
+  two issues and explicitly noted on the second that "no change needed" — because the prompt
+  asks for an honest audit, not a quota of complaints. That nuance is preserved in the stored
+  critique, not filtered out.
+
+### 8.6 The reviser prompt
+
+- **It receives the draft and every issue, and is told to apply the fixes** while keeping
+  the same `REPORT_SPEC` structure.
+- **It is told not to discuss the critique.** The revision is a replacement document, not an
+  appendix — "the criticism said X, so I changed Y" is exactly the meta-commentary that would
+  make the report unreadable.
+
+The `writer.js` module owns both streamed calls (`writeDraft`, `reviseReport`); they share
+the `findingsBlock` helper and the report spec, so a revision cannot drift structurally from
+the draft it is revising.
 
 ---
 
@@ -500,14 +752,36 @@ consumer) has an unambiguous, non-JSON way to detect completion.
 | Event | Emitted when | Payload highlights | UI effect |
 |---|---|---|---|
 | `meta` | run starts | `mock`, `model`, `smartModel`, `depth`, `query` | records run metadata |
+| `phase` | entering a pipeline phase | `phase` (`plan`/`research`/`draft`/`critique`/`revision`/`audit`), `ms` on exit | phase badge + phase timeline |
 | `status` | phase changes | `message` | status line |
-| `plan` | planner done | `title`, `subQuestions` | plan checklist |
+| `plan` | planner done | `title`, `scope`, `subQuestions` | plan checklist + scope note |
 | `step` | agent starts/finishes | `{agent, label, detail, status}` | trace row |
 | `sources` | after each search | `sources[]` (new only), `total` | appends source cards |
 | `findings` | after each extraction | `extraction` | findings fed to report |
-| `token` | writer streaming | `text` delta | appends to report |
+| `token` | draft or revision streaming | `text` delta | appends to report |
+| `critique` | critic done | the critique object | integrity badge + disclosure panel |
+| `report-reset` | revision starts | — | **clears the report** before the revision streams |
+| `audit` | final citation audit | `{references, citedSourceCount, sourceCount, coverage, invalid[], uncited[], invalidRemoved}` | integrity strip + uncited dimming |
 | `done` | after persist | full `record` | finalises, enables export |
 | `error` | pipeline throws | `message` | error banner |
+
+**Thirteen event types**, up from nine. The four additions are the phases that did not exist
+in v1 — and one of them, `report-reset`, exists purely because the report is now written
+twice:
+
+**Why `report-reset` instead of a "replace" flag on `token`:** the client is a dumb appender
+(that is deliberate, see below). Streaming a second document into a buffer that already holds
+the first would corrupt it unless the client knew to clear. Rather than teach the client to
+handle replacement mid-stream, the server says exactly once "drop what you have" and then
+streams normally. It is a one-field event that keeps the client's `token` handling unchanged
+and makes the revision boundary explicit in the trace. The measured run delivered the report
+in **2 streams** with this event in between ([§15.1](#151-end-to-end-live-run)).
+
+**Why `phase` carries a duration only on exit:** the event fires when a phase *starts* (so
+the UI can label it) and again when it ends, carrying `ms`. The orchestrator accumulates
+`phases: [{phase, ms}]` onto the record, which is what produces the timings in
+[§19](#19-performance-where-the-time-goes) — the performance table is generated from the
+same data the user sees, not from a separate benchmark harness.
 
 **Why `sources` sends only *new* sources:** the orchestration emits `fresh` (deduped) rather
 than the running array, so the client appends without re-rendering or de-duplicating.
@@ -709,10 +983,12 @@ return { data: JSON.parse(match[0]), usage }
 | Single API call | ✅ | ❌ scrape + parse | ✅ | ✅ |
 | Search depth control | ✅ `basic`/`advanced` | — | ❌ | ❌ |
 | Relevance scores | ✅ per result | ❌ | ❌ | ❌ |
+| **Full-page extraction** | ✅ `extract()` → markdown | ❌ scrape yourself | ❌ | ❌ |
 | Purpose-built for RAG | ✅ | ❌ | ❌ | ❌ |
 
 Tavily is designed for exactly this use case and returns `content` that is already the
-right granularity to paste into an LLM prompt.
+right granularity to paste into an LLM prompt — and, uniquely among these, it also offers a
+second call that returns **whole pages as markdown** ([§7.6](#76-deep-fetch--reading-pages-not-just-snippets)).
 
 ### 11.2 The normalisation layer
 
@@ -747,6 +1023,23 @@ searchDepth: config.research.depth === 'deep' ? 'advanced' : 'basic'
 count (deep uses `TAVILY_MAX_RESULTS`; quick caps at 3 in `orchestrator.js`). This gives a
 single user-facing knob for the cost/quality trade-off rather than two knobs that can be
 set into a contradictory state.
+
+### 11.4 The second call: `fetchPages`
+
+Search finds sources; `fetchPages` reads them. It is deliberately a *separate* function
+returning a *different* shape, because the two results are used for different things:
+
+```js
+// search.js —— one Map, keyed by the URL that was already numbered
+fetchPages(urls) → Map<url, text>
+```
+
+| Property | Why it is this way |
+|---|---|
+| **Returns a `Map`, not an array** | Sources are already numbered and identified by URL; the caller looks up text by the URL it already has. No index correlation to get wrong. |
+| **Failures are dropped, not thrown** | `extract()` returns `{results, failedResults}`. A paywalled or dead page must degrade to "we only have the snippet", never fail the run ([§18](#18-failure-modes)). |
+| **Text is truncated to `MAX_PAGE_CHARS = 6000`** | Mirrors the snippet cap in [§11.2](#112-the-normalisation-layer): one huge page must not crowd out the others. |
+| **Never persisted** | The `Map` is run-scoped in the orchestrator. Raw page text does not enter the stored record or the SSE stream. |
 
 ---
 
@@ -806,19 +1099,45 @@ erDiagram
     REPORT ||--o{ SOURCE : cites
     REPORT ||--o{ STEP : traces
     REPORT ||--o{ SUBQUESTION : plans
+    REPORT ||--o{ PHASE : "timed"
+    REPORT ||--|| CRITIQUE : "reviewed by"
+    REPORT ||--|| AUDIT : "checked by"
 
     REPORT {
-        string id PK
-        string query
-        string title
-        string status
-        date   createdAt
-        number durationMs
-        string report
+        string  id PK
+        string  query
+        string  title
+        string  scope
+        string  status
+        date    createdAt
+        number  durationMs
+        string  report
         boolean mock
-        number promptTokens
-        number completionTokens
-        number totalTokens
+        boolean revised
+        number  searchRounds
+        mixed   research "raw extractions"
+        number  promptTokens
+        number  completionTokens
+        number  totalTokens
+    }
+    CRITIQUE {
+        string verdict
+        mixed  issues
+        mixed  citationProblems
+        mixed  recommendations
+    }
+    AUDIT {
+        number references
+        number citedSourceCount
+        number sourceCount
+        number coverage
+        mixed  invalid
+        mixed  uncited
+        number invalidRemoved
+    }
+    PHASE {
+        string phase
+        number ms
     }
     SOURCE {
         string id
@@ -840,6 +1159,17 @@ erDiagram
     }
 ```
 
+**Why `research`, `critique`, and `audit` are `Mixed` rather than fully modelled:** they are
+*display-only* payloads. The history list and the report view render them ("3 uncited
+sources", "verdict: solid", "8 issues"), but nothing queries inside them — no filter, no
+sort, no join. Giving them full sub-schemas would be schema churn for shape validation the
+application never relies on. The fields that *are* modelled — `revised`, `searchRounds`,
+`sources.index`, `themes`, `phases` — are the ones the UI branches on.
+
+**Why `searchRounds` is stored even though it is derivable:** it is a research-effort
+signal (how many gap rounds fired) that the reader should be able to see without replaying
+the step trace, and it is cheap to carry.
+
 **Why `subQuestions` is flattened to `[String]` in the record** while the live `plan` event
 carries objects: the persisted shape is what the *history list and report view* need, and
 it's what the Mongo schema validates. The `intent` field is useful to the writer at
@@ -859,7 +1189,9 @@ All run state lives in one hook, `useResearch.js`. It is an explicit four-state 
 stateDiagram-v2
     [*] --> idle
     idle --> running : run(query)
-    running --> running : event {meta,status,plan,step,sources,findings,token}
+    running --> running : event {meta,phase,status,plan,step,sources,findings,token}
+    running --> running : event {critique,audit} (recorded)
+    running --> running : event {report-reset} (clears report buffer)
     running --> done : event {done}
     running --> error : event {error} | fetch throws
     running --> done : stop() (user aborts)
@@ -890,9 +1222,9 @@ stops the run's output. One mechanism, both ends. See [§9.5](#95-heartbeat-and-
 flowchart TD
     APP["App.jsx<br/>health + history + tab state"]
     APP --> QF["QueryForm<br/>input, examples, run/stop"]
-    APP --> TR["AgentTrace<br/>status, plan checklist, step list"]
-    APP --> RV["ReportView<br/>meta, toolbar, banners"]
-    APP --> SP["SourcesPanel"]
+    APP --> TR["AgentTrace<br/>phase badge, scope, plan checklist, steps"]
+    APP --> RV["ReportView<br/>integrity strip + self-critique panel"]
+    APP --> SP["SourcesPanel<br/>dims uncited sources"]
     APP --> HP["HistoryPanel"]
     RV --> MD["Markdown<br/>react-markdown + citation chips"]
     MD --> MM["Mermaid<br/>lazy SVG renderer"]
@@ -972,7 +1304,7 @@ for a print output that looks like a document, not a screenshot of a dashboard.
 
 ### 13.6 Mermaid diagrams in the report
 
-The writer agent is instructed ([§8.3](#83-the-writer-prompt)) to emit one or two
+The writer agent is instructed ([§8.3](#83-the-writer-prompt-and-report_spec)) to emit one or two
 ```` ```mermaid ```` blocks. Rendering them is the interesting part, because the report is
 **streamed token by token** — at any given moment the Markdown is a partial document.
 
@@ -1035,6 +1367,27 @@ the flash would silently never appear. It is now intentionally **unlayered**, wh
 lets it override the card's `border-line-soft` / `bg-inset` utilities. Verified by grepping
 the built CSS for the emitted rule.
 
+### 13.8 Honesty in the UI: the integrity strip and the self-critique panel
+
+The pipeline produces evidence about its *own* quality — citation coverage, uncited sources,
+a critique verdict, and a list of issues. The frontend's job is to show that evidence rather
+than hide it behind a confident-looking document:
+
+| Signal | Where it appears | Why it is surfaced |
+|---|---|---|
+| Phase badge | `AgentTrace` header | makes "still reading sources" legible instead of looking hung |
+| Citation count, cited/total sources | `ReportView` integrity strip | a report citing 23 of 48 sources is a *fact*; burying it would overstate the work |
+| Broke-citation count removed | `ReportView` integrity strip | shows the audit did something, or that it found nothing to fix |
+| Critique verdict + issue list | `ReportView` `<details>` disclosure | the reviewer's findings are available on demand, not presented as a badge of shame |
+| Uncited sources dimmed | `SourcesPanel` | shows *which* sources went unused, which is where a reader would look for the missing angle |
+| Phase-aware placeholder | `ReportView` before first token | the draft phase is slow; a placeholder that names the phase is honest about what's happening |
+
+**The design rule:** every integrity number the backend computes is rendered somewhere the
+user can see, and nothing is styled as an error when it is merely a *limitation*. A report
+that admits "the evidence conflicts here, and these sources went unused" is more useful than
+one that presents false completeness — and the earlier the UI makes that visible, the harder
+it is for the pipeline to quietly regress.
+
 ---
 
 ## 14. Configuration and API reference
@@ -1051,9 +1404,16 @@ the built CSS for the emitted rule.
 | `LLM_MODEL_SMART` | falls back to `LLM_MODEL` | planner + writer tier | provider 404 |
 | `LLM_JSON_MODE` | `true` | send `response_format=json_object` | 400s on strict local models |
 | `TAVILY_API_KEY` | — | required for live search | mock mode |
-| `TAVILY_MAX_RESULTS` | `5` | sources per sub-question | more = slower/richer |
+| `TAVILY_MAX_RESULTS` | `5` | sources per sub-question, **clamped 1–12** | out-of-range silently clamped |
 | `MAX_SUBQUESTIONS` | `5` | planner breadth, **clamped 1–8** | out-of-range silently clamped |
 | `RESEARCH_DEPTH` | `deep` | `deep`=advanced+more · `quick`=basic+≤3 | unknown values fall back to `deep` |
+| `RESEARCH_MAX_ROUNDS` | `2` | extra gap-filling rounds per sub-question, **clamped 0–3** (0 disables the loop) | 0 = shallow single pass |
+| `COVERAGE_FLOOR` | `60` | self-rated coverage (%) below which a gap round fires, **clamped 0–100** | 100 = iterate on nearly every question (slow) |
+| `MAX_FOLLOWUP_QUERIES` | `2` | new queries a gap round may add, **clamped 0–4** | 0 = gap rounds fire but search nothing |
+| `DEEP_FETCH` | `true` | read full pages via Tavily `extract` | snippets only = thinner report |
+| `DEEP_FETCH_SOURCES` | `3` | pages read per sub-question, **clamped 0–8** | higher = much larger prompts and slower |
+| `RESEARCH_CRITIQUE` | `true` | run the critic + revision phases | off = no revision pass, faster |
+| `VERIFY_CITATIONS` | `8` | **reserved** — parsed into `config.research.verifyCitations` but no consumer yet (see [§20](#20-known-limitations-and-honest-gaps) #12) | currently a no-op |
 | `STORAGE` | `file` | `file` or `mongo` | unknown → `file` |
 | `MONGODB_URI` | — | required when `STORAGE=mongo` | **exit(1)** at boot |
 | `MOCK_MODE` | `false` | force canned mode with keys present | hides real behaviour |
@@ -1064,11 +1424,11 @@ the built CSS for the emitted rule.
 
 | Method | Route | Request | Response |
 |---|---|---|---|
-| `POST` | `/api/research/stream` | `{ "query": "…" }` | `text/event-stream` of the 9 event types |
+| `POST` | `/api/research/stream` | `{ "query": "…" }` | `text/event-stream` of the 13 event types |
 | `GET` | `/api/research` | — | `{ reports: [summary…] }`, newest first |
 | `GET` | `/api/research/:id` | — | full record, or `404` |
 | `DELETE` | `/api/research/:id` | — | `{ removed: boolean }`, `404` if absent |
-| `GET` | `/api/health` | — | mode, storage, models, provider, `jsonMode`, `missingKeys`, `depth` |
+| `GET` | `/api/health` | — | mode, storage, models, provider, `jsonMode`, `missingKeys`, `depth`, `research` |
 
 **`/api/health` is the operator's diagnostic** and is what the frontend badge reads:
 
@@ -1081,9 +1441,21 @@ the built CSS for the emitted rule.
   "llmProvider": "https://generativelanguage.googleapis.com/v1beta/openai/",
   "jsonMode": true,
   "missingKeys": [],
-  "depth": "deep"
+  "depth": "deep",
+  "research": {
+    "maxSubQuestions": 5,
+    "maxRounds": 2,
+    "coverageFloor": 60,
+    "deepFetch": true,
+    "critique": true
+  }
 }
 ```
+
+The nested `research` block exposes the **depth knobs actually in effect** — the same ones
+that decide whether a gap round fires, whether pages are read in full, and whether the
+revision pass runs. Before it existed, "why did this run take four minutes?" required
+reading the orchestrator source; now the answer is one `curl`.
 
 **This endpoint exists so that "which model am I actually talking to?" never requires
 guessing.** It was added after the incident in [§15.2](#152-the-model-id-incident-the-reason-this-trade-off-gets-a-whole-section).
@@ -1098,29 +1470,42 @@ with `STORAGE=file` (no database). No part of this section is inferred.
 ### 15.1 End-to-end live run
 
 Health after boot confirmed **live** mode with no missing keys (the JSON above). A real query
-was streamed through `POST /api/research/stream`. **Every one of the nine event types fired,
-and there were zero `error` frames.**
+(`"How do solid-state batteries compare to lithium-ion in 2026?"`) was streamed through
+`POST /api/research/stream` against the real Gemini endpoint and the real Tavily API, with
+`STORAGE=file`. **All six phases ran, all thirteen event types fired, and there were zero
+`error` frames.**
 
 ```mermaid
-pie showData title SSE events emitted in a verified live run (84 total)
-    "token (report deltas)" : 45
-    "step (agent activity)" : 19
-    "status (phase)" : 7
-    "sources" : 5
-    "findings" : 5
-    "meta" : 1
-    "plan" : 1
-    "done" : 1
+pie showData title Wall-clock time by phase (total ≈ 133 s)
+    "research — 13 searches + 9 extractions" : 113348
+    "draft — streamed" : 9333
+    "revision — streamed" : 5822
+    "plan" : 2493
+    "critique" : 2212
+    "audit" : 2
 ```
 
 | Claim | Evidence |
 |---|---|
-| Streaming works on Gemini | 45 `token` deltas arrived incrementally over the writer call |
-| JSON mode works on Gemini | planner + 5 researcher calls returned parseable JSON |
-| Real web search works | 21 deduped source URLs from real domains (yahoo, aps.org, kth.diva-portal.org, …) |
-| Report is grounded | 905-word Markdown containing inline `[n]` citations |
-| Persistence works | record written to `backend/data/reports.json`, newest-first, 5 sub-questions |
+| **All six phases execute, in order** | `phases: [plan, research, draft, critique, revision, audit]` with per-phase `ms` on the record |
+| **The revision actually ran** | `revised: true`, and the report arrived in **2 streams** with a `report-reset` frame between them |
+| **The critic found real problems and they were fixed** | verdict `solid` **with 2 issues**; one was an uncited fast-charging claim in a comparison table, and the shipped table carries `Not established in sources` for that cell — the revision applied it |
+| **Gap-filling fires** | 5 base searches + **8 follow-up searches**, **4 gap rounds**, **9 extractions** for 5 sub-questions |
+| **Full pages are read, not just snippets** | **26 pages** fetched in full across the run (`Full pages read` steps) |
+| **The report is a long-form analyst document** | 1,491 words, 11 `##` sections, 2 `###`, a comparison table, and all five required sections present (`missingSections: []`) |
+| **Diagrams still render** | 1 ```` ```mermaid ```` block, parsed clean with the real **Mermaid v12** parser |
+| **Citations are inline and audited** | 72 references, 23 of 48 sources cited (coverage 48 %), `invalid: []`, `invalidRemoved: 0` |
+| Streaming works on Gemini | 205 `token` deltas across the draft and the revision |
+| JSON mode works on Gemini | planner, 9 researcher, follow-up, and critic calls all returned parseable JSON |
+| Real web search works | 48 deduped source URLs |
+| Persistence works | record written to `backend/data/reports.json`, newest-first |
 | No silent failures | zero `"type":"error"` frames in the captured stream |
+
+**The cost of depth, measured:** 133 s wall-clock and 105,937 tokens (100,434 prompt /
+5,503 completion) versus the ~42 s / ~7-call v1 pipeline. The user explicitly accepted this
+trade — see [§19](#19-performance-where-the-time-goes). Note that **prompt tokens dominate
+by ~18:1**: the depth comes overwhelmingly from *reading more source text*, not from asking
+the model to think longer, which is the cheaper and more grounded way to buy quality.
 
 ### 15.2 The model-id incident (the reason this trade-off gets a whole section)
 
@@ -1173,11 +1558,16 @@ diagram and styling work was added:
 
 | Check | Method | Result |
 |---|---|---|
-| The report really contains diagrams | Live SSE run against the real provider — the writer emitted **2** ```` ```mermaid ```` blocks in a 721-word report | ✅ |
-| Those diagrams are valid Mermaid | Every block extracted from the live report parsed with the real **Mermaid v12** parser under jsdom (`mermaid.parse`) | ✅ 2/2 |
+| **The full six-phase pipeline runs live** | Live SSE run against the real provider: all 6 phases, 13 event types, 0 `error` frames | ✅ |
+| **The revision path executes live** | `revised: true`, 2 `token` streams separated by a `report-reset` frame | ✅ |
+| **Every required report section is emitted** | Parsed the live report for the five mandated `##` sections — `missingSections: []` | ✅ |
+| The report really contains diagrams | The writer emitted a ```` ```mermaid ```` block in the live 1,491-word report | ✅ |
+| Those diagrams are valid Mermaid | Every block extracted from the live report parsed with the real **Mermaid v12** parser under jsdom (`mermaid.parse`) | ✅ 1/1 |
+| **The mock path exercises every phase too** | `MOCK_MODE=true` run on a scratch port: phases `plan, research, draft, critique, revision, audit`, 2 streams, gap round fired, 7 table rows, 1 valid Mermaid block — this is what proves the wired-up code paths, independent of the provider | ✅ |
 | Markdown → Mermaid wiring | SSR smoke render of `Markdown.jsx` asserting the fence becomes `Mermaid`, the source does **not** leak into markup, citations become chips, code fences survive, GFM tables render | ✅ 8/8 |
-| Tailwind tokens actually emitted | Grepped the built CSS for `rounded-panel`, `rounded-control`, `shadow-panel`, `bg-inset`, `text-muted`, `text-planner`, `bg-researcher`, and the unlayered `.source-card.flash` rule | ✅ |
-| Lint + build | `eslint` clean, `vite build` successful | ✅ |
+| Tailwind tokens actually emitted | Grepped the built CSS for `rounded-panel`, `rounded-control`, `shadow-panel`, `bg-inset`, `text-muted`, `text-planner`, `bg-researcher`, `text-critic`, and the unlayered `.source-card.flash` rule | ✅ |
+| Lint + build | `eslint` clean (exit 0), `vite build` successful (exit 0), with `pipefail` + explicit status capture | ✅ |
+| Backend syntax | `node --check` on all 14 changed/created backend modules | ✅ |
 
 And what still cannot be verified here:
 
@@ -1187,6 +1577,7 @@ And what still cannot be verified here:
 | Mermaid **pixels** | Needs a browser | Parser-valid is not the same as legible; a diagram can parse and still lay out awkwardly |
 | Citation-chip scroll & flash | Needs a browser | Interaction could be subtly wrong — the CSS layer-precedence bug found by reading the built CSS is exactly this class of risk |
 | Tailwind's visual result | Needs a browser | Layout/spacing regressions are invisible to `lint` and `build` |
+| **The integrity strip, phase badge, self-critique `<details>` panel** | Needs a browser | The data is verified to be present on the wire (`critique` + `audit` frames captured); only its *presentation* is unproven |
 | Export buttons (copy/.md/PDF) | Needs a browser | Untested |
 | MongoDB driver at runtime | No `MONGODB_URI` provided ("still no db") | `mongoStore.js` is written and type-consistent but never executed |
 | Multiple providers simultaneously | Only Gemini was available | Other base URLs unproven in practice |
@@ -1248,7 +1639,7 @@ Each entry: the decision, what was rejected, why, and what it costs.
 - **Decision:** `LLM_MODEL` (researcher) and `LLM_MODEL_SMART` (planner/writer), the latter defaulting to the former.
 - **Rejected:** one model everywhere; or a mandatory second setting.
 - **Why:** cost scales with call count — the researcher is called N times. Defaulting keeps single-model providers working.
-- **Cost:** operators must understand which agent uses which tier (documented in the README table and [§7.1](#71-the-three-agents)).
+- **Cost:** operators must understand which agent uses which tier (documented in the README table and [§7.1](#71-the-pipeline-in-six-phases)).
 
 ### ADR-08: Tavily behind a normalising wrapper
 
@@ -1341,6 +1732,38 @@ Each entry: the decision, what was rejected, why, and what it costs.
 - **Why:** importing a module must not bind a port or touch storage as a side effect. The factory makes the app importable and testable, and keeps the storage-failure exit ([ADR-10](#adr-10-fail-fast-on-storage-init-failure)) in the bootstrap where it belongs.
 - **Cost:** one extra file and one extra hop when tracing startup — a good trade.
 
+### ADR-21: The critique is advisory; the revision is unconditional
+
+- **Decision:** when `RESEARCH_CRITIQUE=true`, the revision pass runs **regardless of the
+  critic's `verdict`**. The verdict is stored and displayed, but it does not gate the revision.
+- **Rejected:** the original design, which skipped revision when `verdict === 'solid'` unless
+  the critique contained a high-severity issue.
+- **Why:** the gate was **wrong in practice, not merely in theory.** In the first measured
+  live run the critic returned `verdict: "solid"` *and* two issues, one of them a real uncited
+  claim — and the pipeline skipped the revision entirely because of the verdict. A model's
+  one-word summary of its own review is the least trustworthy part of that review; the typed
+  issue list is the trustworthy part, and it is right there to act on. Skipping work to save
+  two seconds of a four-minute run was a false economy.
+- **Cost:** the revision's ~6 s and its tokens on every run, plus a second streamed report
+  that the client must be told to clear (`report-reset`). Both accepted: the user explicitly
+  prioritised depth and verified integrity over latency.
+- **Safety net:** if the revision call fails or returns `< 120` words, the draft is kept and
+  `revised: false` is recorded — an improvement step may never make the output worse.
+
+### ADR-22: Sanitise citations instead of only reporting them
+
+- **Decision:** `auditCitations` finds unresolvable `[n]` references, and `sanitizeCitations`
+  **removes** them (preserving valid comma-lists), then the report is re-audited to record
+  how many were removed.
+- **Rejected:** reporting `invalid[]` to the UI and leaving the text untouched.
+- **Why:** a citation chip that points nowhere is worse than plain text, because it *looks
+  like evidence* and survives export to Markdown/PDF where the UI that would have revealed it
+  is gone. The audit is a pure function with no model in the loop, so there is no downside to
+  acting on its finding rather than merely displaying it.
+- **Cost:** the sanitised report differs slightly from what the model wrote — a `[37]` that
+  pointed at nothing becomes nothing. This is deliberate and is why `invalidRemoved` is
+  surfaced in the integrity strip rather than hidden.
+
 ---
 
 ## 17. Security & robustness
@@ -1351,8 +1774,10 @@ Each entry: the decision, what was rejected, why, and what it costs.
 | **API key leakage** | Keys live only in the backend process; the browser never receives them | architecture ([§3](#3-system-context)) |
 | **CORS** | Explicit `CLIENT_ORIGIN` allow-list, not `*` | `index.js` |
 | **Oversized request bodies** | `express.json({ limit: '1mb' })` | `index.js` |
-| **Prompt abuse / cost run-away** | Query capped at 500 chars; sub-questions clamped 1–8; results capped per search; snippets truncated to 800 chars | `routes/research.js`, `config.js`, `search.js` |
-| **Prompt injection from web pages** | Partial only: the researcher is instructed to extract, not obey, and the writer only sees structured findings. **Not a hard guarantee.** | `prompts.js` |
+| **Prompt abuse / cost run-away** | Query capped at 500 chars; sub-questions, rounds, results, follow-ups, and deep-fetch counts all clamped in `config.js`; snippets truncated to 800 chars and full pages to 6,000 chars; follow-up loops bounded by `RESEARCH_MAX_ROUNDS` | `routes/research.js`, `config.js`, `search.js` |
+| **Prompt injection from web pages** | Partial only: the researcher is instructed to extract, not obey, the writer only sees structured findings, and the critic audits for overreach. **Not a hard guarantee.** | `prompts.js`, `critic.js` |
+| **Raw page text leaking into storage or the client** | Full page text lives in a run-scoped `Map` and is never persisted, never put on the SSE stream | `orchestrator.js` |
+| **Unresolvable citations surviving into an export** | The audit removes them before the report is persisted, not merely flags them | `citations.js` (ADR-22) |
 | **Open API** | None — acceptable for local use only (ADR-15) | [§20](#20-known-limitations-and-honest-gaps) |
 | **Broken stream on client disconnect** | `closed` flag + `AbortController` propagation | `routes/research.js` |
 
@@ -1377,16 +1802,30 @@ flowchart TD
     STREAM --> PLAN{"planner call"}
     PLAN -->|"throws"| ERR["error frame → stream ends<br/>report not saved"]
     PLAN -->|"ok"| SEARCH{"Tavily per sub-question"}
-    SEARCH -->|"throws"| SF["step 'Search failed';<br/>emptyExtraction for that sub-question;<br/>**run continues**"]
-    SEARCH -->|"ok"| EXTRACT{"extraction call"}
-    EXTRACT -->|"throws"| EXF["caught where? → propagates<br/>to pipeline error"]
-    EXTRACT -->|"ok"| WRITE{"writer stream"}
-    WRITE -->|"ok"| SAVE{"db.save"}
+    SEARCH -->|"throws"| SF["step 'Search failed';<br/>emptyExtraction (coverage 0);<br/>**run continues**"]
+    SEARCH -->|"ok"| FETCH{"deep fetch<br/>(Tavily extract)"}
+    FETCH -->|"fails/some fail"| FD["failures dropped —<br/>falls back to snippets"]
+    FETCH -->|"ok"| EXTRACT{"extraction call"}
+    FD --> EXTRACT
+    EXTRACT -->|"throws"| EXF["propagates →<br/>pipeline error"]
+    EXTRACT -->|"ok"| GAP{"coverage < floor?"}
+    GAP -->|"yes"| FUP{"follow-up proposal"}
+    FUP -->|"throws or empty list"| STOPF["loop exits —<br/>proceeds with what it has"]
+    FUP -->|"ok"| SEARCH
+    STOPF --> WRITE
+    GAP -->|"no"| WRITE{"draft stream"}
+    WRITE --> CRIT{"critique call"}
+    CRIT -->|"throws"| REV
+    CRIT -->|"ok"| REV{"revision stream<br/>(always runs)"}
+    REV -->|"throws or &lt;120 words"| KEEP["keep the draft;<br/>revised = false"]
+    REV -->|"ok"| AUDIT["citation audit +<br/>sanitise"]
+    KEEP --> AUDIT
+    AUDIT -->|"ok"| SAVE{"db.save"}
     SAVE -->|"throws"| SW["status 'could not save'<br/>**run still completes + done**"]
     SAVE -->|"ok"| DONE["done frame"]
 ```
 
-Three tiers of failure handling, each deliberate:
+Four tiers of failure handling, each deliberate:
 
 1. **Per-search failure is survivable.** `webSearch` is wrapped in `try/catch`; a failed
    search logs a step and falls through to `emptyExtraction`, which records an honest gap
@@ -1394,7 +1833,12 @@ Three tiers of failure handling, each deliberate:
 2. **Save failure is non-fatal.** If persistence throws, the pipeline emits a `status`
    warning and *still* emits `done` with the record in hand. The user gets their report even
    if the database is down — the report was already streamed to them anyway.
-3. **Pipeline failure is terminal but clean.** Any other throw is caught in the route,
+3. **Every *added* phase is individually survivable.** Deep-fetch failures drop to snippets;
+   an empty or failed follow-up proposal ends the gap loop instead of the run; a failed
+   critique skips straight to revision; a failed or degenerate revision keeps the draft. Each
+   guard exists because the phase is an *enhancement* — the pipeline must still produce a
+   cited report if any of them misbehave.
+4. **Pipeline failure is terminal but clean.** Any other throw is caught in the route,
    emitted as an `error` frame, and the stream is closed. Missing API keys surface here.
 
 **Why 400 errors are sent *before* the SSE headers:** once `writeHead(200, text/event-stream)`
@@ -1413,47 +1857,79 @@ except by the `meta.mock` flag it renders as a badge and a warning banner.
 ## 19. Performance: where the time goes
 
 Measured on a real live run ("How do solid-state batteries compare to lithium-ion in 2026?",
-`RESEARCH_DEPTH=deep`, `MAX_SUBQUESTIONS=5`, Gemini 3.5 Flash Lite):
+`RESEARCH_DEPTH=deep`, `MAX_SUBQUESTIONS=5`, Gemini 3.5 Flash Lite, all depth knobs at their
+defaults):
 
 ```mermaid
-pie showData title Wall-clock time by phase (total ≈ 42.1 s)
-    "Research: 5 × (search + extract)" : 34846
-    "Synthesis: streamed write" : 4689
-    "Planning: decompose topic" : 2530
+pie showData title Wall-clock time by phase (total ≈ 133.2 s)
+    "Research: 13 searches + 9 extractions + 26 page reads" : 113348
+    "Draft: streamed write" : 9333
+    "Revision: streamed rewrite" : 5822
+    "Plan: decompose topic" : 2493
+    "Critique: audit the draft" : 2212
 ```
 
 | Phase | Time | Share | Notes |
 |---|---|---|---|
-| Planning | 2.5 s | 6 % | one `chatJSON` call |
-| **Research** | **34.8 s** | **83 %** | 5 sequential sub-questions × (Tavily + extraction) |
-| Synthesis | 4.7 s | 11 % | streamed; **first token at 38.3 s** |
-| **Total** | **42.1 s** | 100 % | 84 SSE events, 7 LLM calls, 5 searches |
+| Plan | 2.5 s | 2 % | one `chatJSON` call |
+| **Research** | **113.3 s** | **85 %** | 13 searches, 9 extractions, 26 full pages, 4 gap rounds |
+| Draft | 9.3 s | 7 % | streamed; **first token at 117 s** |
+| Critique | 2.2 s | 2 % | one `chatJSON` call |
+| Revision | 5.8 s | 4 % | streamed; **first token at 128.6 s** |
+| Audit | 0.002 s | 0 % | pure regex + set lookup, no model |
+| **Total** | **133.2 s** | 100 % | ~314 SSE events, 13 LLM calls, 13 searches, 105,937 tokens |
 
-### The latency insight
+### Where the time and money actually go
 
-**83 % of the wall-clock time is the sequential research loop.** The writer is fast and
-streamed; the planner is negligible. If latency is ever a problem, this is the only place
-worth touching — and the fix is obvious: run the sub-question research **concurrently**.
+**Research is still ~85 % of the run — and that is now the *point*.** The v1 pipeline spent
+~35 s on 5 searches and 5 extractions. This one spends ~113 s on 13 searches, 9 extractions,
+and **26 full pages read**. The extra ~78 s buys: gap-targeted rounds on the sub-questions
+the researcher rated least complete, and whole-page text instead of ~800-character snippets.
 
-**Why it wasn't done in v1:** deterministic source numbering ([§7.4](#74-source-indexing--the-backbone-of-citations))
-depends on ordering. Parallel research would need a two-pass scheme (gather all results,
-then number them) or pre-allocated per-sub-question number ranges. That is a real design
-change with real risk to the citation invariant, and it was not worth taking before the
-pipeline was proven end-to-end. It is the **first** item in [§20](#20-known-limitations-and-honest-gaps).
+**The token split is the interesting number: 100,434 prompt vs 5,503 completion (~18:1).**
+That ratio says the depth is bought almost entirely with *input context* — reading more of the
+actual sources — rather than with longer reasoning or longer output. For a research task that
+is the right way round: more evidence in, same-shaped answer out.
+
+### The latency insight (unchanged, and deliberately not fixed)
+
+**Research is the only phase worth optimising.** Planning, critique, revision, and audit
+together are under 10 s. If latency ever mattered, the fix is still the same: run the
+sub-question research **concurrently**.
+
+**Why it still wasn't done:** deterministic source numbering
+([§7.4](#74-source-indexing--the-backbone-of-citations)) depends on ordering, and the
+*sequential* loop is what makes the gap-filling logic ([§7.5](#75-the-gap-filling-loop-iterative-depth))
+tractable — each round extends a sub-question's own history without racing another one.
+Parallelising would need a two-pass scheme (gather all results, then number them) or
+pre-allocated per-sub-question number ranges, plus a rethinking of the per-sub-question
+`alreadyAsked` set. That is a real design change with real risk to the citation invariant.
+It stays the **first** item in [§20](#20-known-limitations-and-honest-gaps).
+
+**The explicit trade accepted here:** the user was asked how to spend the budget and chose
+*"don't care about latency — prefer maximum depth and verification, even 3–5 minutes."* That
+is why the depth knobs default to values that produce a ~2–5 minute run rather than a ~40 s
+one. The dial exists (`RESEARCH_MAX_ROUNDS=0`, `DEEP_FETCH=false`, `RESEARCH_CRITIQUE=false`
+returns roughly v1 behaviour) but it is deliberately turned up.
 
 ### The perceived-latency mitigation
 
-42 seconds is acceptable *because it is streamed*. Using the measured event distribution
-([§15.1](#151-end-to-end-live-run)), the user has feedback almost immediately:
+133 seconds is acceptable *because it is streamed and legible*. Using the measured phase
+timings ([§15.1](#151-end-to-end-live-run)), the user has feedback almost immediately:
 
 - `meta` + first `status` → within ~1 s
-- `plan` (the checklist) → at ~2.5 s
+- `plan` (the checklist, with scope and themes) → at ~2.5 s
 - first `sources` → within a few seconds after that
-- first report `token` → ~38 s, but by then 5 source cards and 19 trace steps are visible
+- 48 source cards and 57 trace rows → accumulate continuously for ~115 s
+- first draft `token` → ~117 s; first revision `token` → ~129 s
 
-An equivalent non-streaming implementation would show a spinner for 42 seconds. The
+An equivalent non-streaming implementation would show a spinner for 133 seconds. This is
+exactly why the **`phase` event was added**: during a two-minute research phase the old UI
+could only say "researching…", which is indistinguishable from "hung". Now the badge names
+the phase and the trace shows each search, page read, and gap round as it happens. The
 protocol choice ([ADR-04](#adr-04-post-sse-with-hand-parsing)) is what converts a latency
-problem into a legible process.
+problem into a legible process — and the longer the pipeline gets, the more load-bearing
+that choice becomes.
 
 ---
 
@@ -1463,7 +1939,7 @@ Ordered by how much they'd matter if this became more than a local tool.
 
 | # | Limitation | Impact | Sketch of the fix |
 |---|---|---|---|
-| 1 | **Research is sequential** | ~35 s of a 42 s run | Bounded-concurrency fan-out with a two-pass numbering scheme |
+| 1 | **Research is sequential** | ~113 s of a 133 s run | Bounded-concurrency fan-out with a two-pass numbering scheme |
 | 2 | **No authentication** | Cannot be exposed publicly | Add sessions + `ownerId` on records; scope `list`/`get`/`remove` |
 | 3 | **File store rewrites the whole file** | O(n) write per save; not multi-process safe | That's what `STORAGE=mongo` is for |
 | 4 | **Prompt injection from web content** | A hostile page could skew a report | Source allow-listing, injection classifiers, output review — all partial |
@@ -1474,6 +1950,10 @@ Ordered by how much they'd matter if this became more than a local tool.
 | 9 | **Search quality unseen** | A run with no results still "succeeds" | Surface `gaps` prominently in the UI; warn when `gaps` is non-empty |
 | 10 | **No automated test suite** | Regressions caught only by manual runs | A mock-mode integration test is nearly free — the pipeline already runs deterministically in mock |
 | 11 | **Report diagrams are LLM-authored** | A malformed ```` ```mermaid ```` block shows the "could not render" fallback instead of a diagram | The fallback and the prompt constraints already contain it; a server-side `mermaid.parse` guard could reject bad blocks before persisting |
+| 12 | **`VERIFY_CITATIONS` is parsed but unused** | A documented config knob that does nothing is worse than no knob — it implies verification that isn't happening | Wire it to a per-citation source-check pass, or delete it and the `.env.example` line |
+| 13 | **The critic is the same model family as the writer** | A shared blind spot can survive an adversarial review | The critique is one prompt in one file; pointing it at a *different* provider is a small, high-value change |
+| 14 | **Deep fetch reads only the top-N ranked URLs** | A lower-ranked source with the best primary data is never read in full | Make `DEEP_FETCH_SOURCES` adaptive (e.g. read more when coverage is low) or rank by something other than Tavily's score |
+| 15 | **The revision is unconditional, so it always costs ~6 s + tokens** | Slightly wasteful on an already-clean draft | ADR-21 explains why this was accepted; a cheap gate would need a trustworthy signal, which the `verdict` field demonstrably was not |
 
 ---
 
@@ -1481,11 +1961,19 @@ Ordered by how much they'd matter if this became more than a local tool.
 
 | Term | Meaning here |
 |---|---|
-| **Agent** | An LLM call with a fixed role, a system prompt, and an expected output shape. We have three. |
-| **Sub-question** | One searchable facet of the topic, produced by the planner. |
+| **Agent** | An LLM call with a fixed role, a system prompt, and an expected output shape. We have five (planner, researcher, follow-up, critic, writer/reviser). |
+| **Phase** | One of the six stages a run passes through: `plan`, `research`, `draft`, `critique`, `revision`, `audit`. Emitted as `phase` events and timed onto the record. |
+| **Sub-question** | One searchable facet of the topic, produced by the planner — with an `intent` and a `theme`. |
 | **Source** | A web result, deduped by URL and assigned a permanent citation number. |
-| **Finding** | A single factual claim with a list of source numbers it came from. |
-| **Extraction** | The researcher's full output for one sub-question: summary + findings + gaps. |
+| **Finding** | A single factual claim with a list of source numbers it came from, plus a confidence label. |
+| **Extraction** | The researcher's full output for one sub-question: summary + findings + gaps + a `coverage` estimate. |
+| **Coverage** | The researcher's own 0–100 estimate of how completely it answered a sub-question. Drives the gap-filling loop. |
+| **Gap round** | An extra search-and-extract pass triggered because `coverage` fell below `COVERAGE_FLOOR`. |
+| **Deep fetch** | Reading full page text (Tavily `extract`) rather than the ~800-char search snippet. |
+| **Critique** | A typed, adversarial audit of the draft, produced by a separate LLM call. |
+| **Revision** | The streamed rewrite that applies the critique. Replaces the draft; never appended to it. |
+| **Citation audit** | A pure, model-free pass that verifies and sanitises every `[n]` in the final report. |
+| **Integrity strip** | The UI row showing citation coverage, uncited count, removed citations, and the critique verdict. |
 | **SSE** | Server-Sent Events — a one-way `text/event-stream` HTTP response. |
 | **Frame** | One `data: …\n\n` unit in the SSE stream. |
 | **Mock mode** | The real pipeline running on canned data, when the LLM or search is unconfigured. |
@@ -1498,7 +1986,7 @@ Ordered by how much they'd matter if this became more than a local tool.
 
 ```
 backend/
-  .env.example                     every setting, documented, with provider examples
+  .env.example                     every setting, documented, incl. the depth/integrity block
   package.json                     6 dependencies, ESM, node --watch dev
   src/
     index.js                       bootstrap: storage init, listen, startup banner
@@ -1506,12 +1994,19 @@ backend/
     config.js                      env resolution, mock detection, derived flags
     llm.js                         OpenAI-SDK transport: chatJSON / chatStream / chat
     agents/
-      orchestrator.js              the pipeline; emits all 9 SSE event types
-      planner.js                   topic → sub-questions + title
-      researcher.js                sub-question + sources → cited findings
-      writer.js                    everything → streamed Markdown (incl. Mermaid)
-      prompts.js                   all prompt text; zero logic
-      mock.js                      canned plan / extractions / report for mock mode
+      orchestrator.js              the 6-phase pipeline; emits all 13 SSE event types;
+                                   owns the gap loop, deep fetch, page-text Map
+      planner.js                   topic → scope + themed sub-questions + title
+      researcher.js                sub-question + sources → cited findings,
+                                   coverage, confidence; needsFollowUp()
+      followups.js                 gaps → new gap-targeted queries (dedupes alreadyAsked)
+      critic.js                    draft → typed critique; hasMaterialIssues()
+      citations.js                 pure: auditCitations() + sanitizeCitations()
+      writer.js                    everything → streamed draft (writeDraft),
+                                   draft + critique → streamed revision (reviseReport)
+      prompts.js                   all prompt text incl. REPORT_SPEC; zero logic
+      mock.js                      canned plan / extractions / followups / critique /
+                                   draft / revision — exercises every phase
     services/
       search.js                    Tavily + normalisation + mock search
     routes/
@@ -1534,9 +2029,10 @@ frontend/
     components/
       ui/                          Button, Panel (+PanelHead), Badge
       QueryForm.jsx                input, examples, run/stop
-      AgentTrace.jsx               status line, plan checklist, step trace
-      ReportView.jsx               meta, toolbar (copy/.md/PDF), mock banner
-      SourcesPanel.jsx             numbered source cards (#source-n anchors)
+      AgentTrace.jsx               phase badge, scope note, plan checklist, step trace
+      ReportView.jsx               meta, toolbar (copy/.md/PDF), mock banner,
+                                   integrity strip, self-critique disclosure
+      SourcesPanel.jsx             numbered source cards (#source-n anchors), dims uncited
       HistoryPanel.jsx             saved reports, open/delete
       Markdown.jsx                 GFM rendering + citation chips + mermaid hook
       Mermaid.jsx                  lazy SVG renderer with source fallback
