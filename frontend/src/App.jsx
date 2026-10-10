@@ -1,12 +1,12 @@
-import { Show, SignInButton, SignUpButton, UserButton, useAuth } from '@clerk/react'
+import { Show, UserButton, useAuth } from '@clerk/react'
 import { useCallback, useEffect, useState } from 'react'
+import Landing from './components/Landing.jsx'
 import QueryForm from './components/QueryForm.jsx'
 import AgentTrace from './components/AgentTrace.jsx'
 import ReportView from './components/ReportView.jsx'
 import SourcesPanel from './components/SourcesPanel.jsx'
 import HistoryPanel from './components/HistoryPanel.jsx'
 import Badge from './components/ui/Badge.jsx'
-import Button from './components/ui/Button.jsx'
 import { cn } from './lib/cn.js'
 import { useResearch } from './hooks/useResearch.js'
 import {
@@ -98,7 +98,7 @@ function ResearchApp() {
             ✦
           </span>
           <div>
-            <h1 className="text-[22px] tracking-tight">Deep Research</h1>
+            <h1 className="text-[22px] tracking-tight">MAD Researcher</h1>
             <p className="text-[13px] text-muted">
               Multi-agent web research with cited, streamed reports
             </p>
@@ -179,39 +179,9 @@ function ResearchApp() {
       </main>
 
       <footer className="mt-8 text-center text-xs tracking-wide text-muted">
-        Planner → Researcher × N → Writer → Critic → Reviser · streamed live over SSE
+        MAD Researcher · Planner → Researcher × N → Writer → Critic → Reviser · streamed live
+        over SSE
       </footer>
-    </div>
-  )
-}
-
-/** Shown to signed-out visitors — Clerk's modal handles sign-in/sign-up. */
-function SignedOutLanding() {
-  return (
-    <div className="mx-auto grid min-h-[80vh] max-w-[540px] place-items-center px-6">
-      <div className="text-center">
-        <span className="mx-auto mb-4 grid h-14 w-14 place-items-center rounded-2xl bg-gradient-to-br from-accent to-accent-2 text-[28px] text-white shadow-lg shadow-accent/40">
-          ✦
-        </span>
-        <h1 className="mb-2 text-[26px] tracking-tight">Deep Research</h1>
-        <p className="mb-6 text-[14px] text-muted">
-          Ask a question and a pipeline of agents plans, searches, reads, self-critiques and
-          writes a cited report. Sign in to run a question — your reports are saved to your
-          account.
-        </p>
-        <div className="flex justify-center gap-2.5">
-          <SignInButton mode="modal">
-            <Button variant="primary" size="lg">
-              Sign in
-            </Button>
-          </SignInButton>
-          <SignUpButton mode="modal">
-            <Button variant="ghost" size="lg">
-              Create account
-            </Button>
-          </SignUpButton>
-        </div>
-      </div>
     </div>
   )
 }
@@ -220,7 +190,7 @@ export default function App() {
   return (
     <>
       <Show when="signed-out">
-        <SignedOutLanding />
+        <Landing />
       </Show>
       <Show when="signed-in">
         <ResearchApp />

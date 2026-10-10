@@ -1,6 +1,6 @@
-# Deep Research — Agentic AI
+# MAD Researcher — Multi-Agent Research
 
-A MERN-stack deep-research platform. Sign in, ask a question, and a pipeline of
+MAD Researcher is a MERN-stack platform for deep research. Sign in, ask a question, and a pipeline of
 AI agents **plans** the investigation, **searches the web**, **reads pages in
 full**, fills its own **gaps**, **drafts** a report, **critiques** that draft
 against its own sources, **revises** it, and runs a **citation audit** before

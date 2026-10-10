@@ -1,6 +1,6 @@
-# Deep Research — frontend
+# MAD Researcher — frontend
 
-React 19 + Vite 8 + Tailwind CSS v4 single-page client for the Deep Research
+React 19 + Vite 8 + Tailwind CSS v4 single-page client for MAD Researcher
 backend. It starts a run over SSE, streams the agent trace and the report as it
 is written, renders Markdown (with [Mermaid](https://mermaid.js.org) diagrams
 and clickable citation chips), and manages saved-report history.

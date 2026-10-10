@@ -26,7 +26,7 @@ async function start() {
   const app = createApp()
 
   app.listen(config.port, () => {
-    console.log('\n  Deep Research backend')
+    console.log('\n  MAD Researcher backend')
     console.log(`  ├─ listening   http://localhost:${config.port}`)
     console.log(`  ├─ client      ${config.clientOrigin}`)
     console.log(`  ├─ storage     ${storageInfo}`)

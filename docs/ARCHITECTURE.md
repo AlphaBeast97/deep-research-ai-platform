@@ -1,4 +1,4 @@
-# Deep Research — Architecture & Decision Record
+# MAD Researcher — Architecture & Decision Record
 
 > **Status:** living document · **Scope:** the entire system (backend + frontend)
 > **Audience:** anyone who has to run, extend, debug, or *argue with* this codebase.

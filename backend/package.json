@@ -1,7 +1,7 @@
 {
-  "name": "deep-research-backend",
+  "name": "mad-researcher-backend",
   "version": "1.0.0",
-  "description": "Backend for the agentic deep-research web app (Express + any OpenAI-compatible LLM + Tavily)",
+  "description": "Backend for MAD Researcher (Express + Clerk + MongoDB + any OpenAI-compatible LLM + Tavily)",
   "type": "module",
   "main": "src/index.js",
   "scripts": {
