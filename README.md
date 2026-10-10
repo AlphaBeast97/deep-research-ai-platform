@@ -333,7 +333,7 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
 - **Mermaid diagrams in the report** — the writer embeds ```` ```mermaid ```` flowcharts/timelines where they
   clarify a process, and the UI renders them as SVG (with a graceful fallback to the raw source).
 - **Citations & sources panel** — inline `[n]` markers become clickable chips that scroll to the matching source card.
-- **Export** — copy as Markdown, download `.md` (diagrams preserved as code), or print/save as PDF.
+- **Export** — copy as Markdown, download `.md` (diagrams preserved as code), download **Word `.docx`** (real headings, tables, and diagrams rasterised to images), or print/save as **PDF**. The `.docx` and PDF both carry a **Sources appendix**, so `[n]` citations resolve inside the exported file.
 - **Tailwind CSS v4 UI** — dark-first design tokens, light theme via `prefers-color-scheme`, no hand-written component CSS.
 
 ## Tech stack

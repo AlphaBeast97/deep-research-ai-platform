@@ -5,6 +5,7 @@ import Button from './ui/Button.jsx'
 import Badge from './ui/Badge.jsx'
 import { wordCount } from '../lib/format.js'
 import { downloadMarkdown, printReport } from '../lib/export.js'
+import { downloadDocx, rasterizeDiagrams } from '../lib/docx.js'
 
 const PHASE_LABEL = {
   plan: 'Planning the research strategy…',
@@ -27,6 +28,7 @@ export default function ReportView({
 }) {
   const containerRef = useRef(null)
   const [copied, setCopied] = useState(false)
+  const [exporting, setExporting] = useState(false)
 
   const words = wordCount(report)
 
@@ -44,6 +46,21 @@ export default function ReportView({
 
   const onExportPdf = () =>
     printReport({ title, html: containerRef.current?.innerHTML ?? '', sources })
+
+  const onExportDocx = async () => {
+    if (exporting) return
+    setExporting(true)
+    try {
+      // Rasterise the rendered diagrams first so they land in the .docx as
+      // images rather than Mermaid source text.
+      const diagramImages = await rasterizeDiagrams(containerRef.current)
+      await downloadDocx({ title, report, sources, diagramImages })
+    } catch (err) {
+      console.error('DOCX export failed:', err)
+    } finally {
+      setExporting(false)
+    }
+  }
 
   if (!report) {
     return (
@@ -75,6 +92,9 @@ export default function ReportView({
           </Button>
           <Button size="sm" onClick={onExportPdf}>
             PDF
+          </Button>
+          <Button size="sm" onClick={onExportDocx} disabled={exporting}>
+            {exporting ? 'Preparing…' : 'DOCX'}
           </Button>
         </div>
       </PanelHead>
