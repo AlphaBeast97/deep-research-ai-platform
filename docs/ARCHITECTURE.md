@@ -68,7 +68,7 @@ works with any LLM provider and degrades gracefully to a demo mode when unconfig
 | G2 | **Live** agent trace in the UI | Server-Sent Events, one event per unit of progress | `routes/research.js`, `useResearch.js` |
 | G3 | Grounded citations | sources numbered at retrieval; claims carry `[n]` | `orchestrator.js`, `prompts.js` |
 | G4 | Sources are inspectable | side panel with title, host, snippet, score | `SourcesPanel.jsx` |
-| G5 | Export | copy, `.md` download, print-to-PDF | `ReportView.jsx` |
+| G5 | Export | copy, `.md`, print-to-PDF, `.docx` — all carrying sources | `ReportView.jsx`, `lib/export.js`, `lib/docx.js` |
 | G6 | Durable, **private** persistence | MongoDB Atlas is the only store; startup fails without it | `db/mongoStore.js` |
 | G7 | **No vendor lock-in** to OpenAI | OpenAI SDK used purely as a transport; any base URL | `llm.js`, `config.js` |
 | G8 | Misconfiguration is loud, not silent | startup lists missing keys and `exit(1)` — no mock fallback | `config.js`, `index.js` |
@@ -552,8 +552,9 @@ a number worth gaming.
 ## 8. Prompt design
 
 Every system prompt lives in `agents/prompts.js` — a single file with no logic and no
-imports. There are seven: planner, researcher, follow-up proposal, writer, critic, reviser,
-and the shared `REPORT_SPEC` block the writer and reviser both consume.
+imports. There are six: planner, researcher, follow-up proposal, writer, critic and reviser,
+plus the per-format structure blocks they are composed with (see
+[ADR-25](#adr-25-six-selectable-report-formats)).
 
 ### 8.1 The planner prompt
 
@@ -597,11 +598,12 @@ and the shared `REPORT_SPEC` block the writer and reviser both consume.
   snippet** — prefixed `Search snippet:` only in the fallback case, so the model can tell
   which it is looking at ([§7.6](#76-deep-fetch--reading-pages-not-just-snippets)).
 
-### 8.3 The writer prompt and `REPORT_SPEC`
+### 8.3 The writer prompt and the format spec
 
-`writer.js` and `critic.js`'s reviser step share one exported `REPORT_SPEC` string, so the
-revision is guaranteed to target the same structure the draft was built against. It is a
-**long-form analyst** specification, not a summary. It fixes:
+`writer.js` and `critic.js`'s reviser step are both composed from the *same* format spec for a
+given run, so the revision is guaranteed to target the structure the draft was built against.
+The default format is a **long-form analyst** specification, not a summary. Each of the six
+formats supplies its own section list; the analyst one is:
 
 1. `# ` title — the report's own headline, not the raw query.
 2. `## Scope & method` — what was investigated, what was deliberately excluded, how many
@@ -619,7 +621,7 @@ revision is guaranteed to target the same structure the draft was built against.
    mandatory rather than optional, because a report that claims completeness is
    *misleading*, and its absence is one of the things the critic checks for.
 
-Plus two cross-cutting rule blocks:
+Plus two cross-cutting rule blocks, shared by every format:
 
 - **Citation rules (critical)** — only cite provided numbers, never invent one, and **do not
   add a reference list**. That last rule is what lets the UI own reference rendering
@@ -636,10 +638,12 @@ Plus two cross-cutting rule blocks:
   produces a diagram on every report, including ones where it is filler. Tying it to the
   shape of the content keeps the feature honest.
 
-**The `REPORT_SPEC` extraction is itself a decision:** the structure exists once, as a
-string, and both the draft and the revision are built from it. If the two prompts each
-carried their own copy of the skeleton, the revision could silently "improve" the report
-into a different shape than the critic audited.
+**Factoring the structure out is itself a decision:** it exists once, as a string, and both
+the draft and the revision are built from it. If the two prompts each carried their own copy
+of the skeleton, the revision could silently "improve" the report into a different shape than
+the critic audited. The shared detail/citation/diagram rules live in a separate
+`SHARED_RULES` block that every format appends, so no format can lose the citation rules.
+See [ADR-25](#adr-25-six-selectable-report-formats).
 
 The writer-specific design notes:
 
@@ -685,14 +689,14 @@ The critic is the pipeline's adversarial reviewer, and the prompt is written to 
 ### 8.6 The reviser prompt
 
 - **It receives the draft and every issue, and is told to apply the fixes** while keeping
-  the same `REPORT_SPEC` structure.
+  the same format structure.
 - **It is told not to discuss the critique.** The revision is a replacement document, not an
   appendix — "the criticism said X, so I changed Y" is exactly the meta-commentary that would
   make the report unreadable.
 
-The `writer.js` module owns both streamed calls (`writeDraft`, `reviseReport`); they share
-the `findingsBlock` helper and the report spec, so a revision cannot drift structurally from
-the draft it is revising.
+The `writer.js` module owns both streamed calls (`writeDraft`, `reviseReport`); they resolve
+the run's report format, share the `findingsBlock` helper and the format spec, so a revision
+cannot drift structurally from the draft it is revising.
 
 ---
 
@@ -744,7 +748,7 @@ consumer) has an unambiguous, non-JSON way to detect completion.
 
 | Event | Emitted when | Payload highlights | UI effect |
 |---|---|---|---|
-| `meta` | run starts | `model`, `smartModel`, `depth`, `critique`, `deepFetch`, `maxRounds`, `query` | records run metadata |
+| `meta` | run starts | `model`, `smartModel`, `depth`, `critique`, `deepFetch`, `maxRounds`, `reportType`, `query` | records run metadata |
 | `phase` | entering a pipeline phase | `phase` (`plan`/`research`/`draft`/`critique`/`revision`/`audit`) | phase badge + phase timeline |
 | `status` | phase changes | `message` | status line |
 | `plan` | planner done | `title`, `scope`, `subQuestions` | plan checklist + scope note |
@@ -1101,6 +1105,7 @@ erDiagram
         string  id PK
         string  query
         string  title
+        string  reportType "analyst | brief | …"
         string  scope
         string  status
         date    createdAt
@@ -1222,7 +1227,7 @@ flowchart TD
     APP --> HP["HistoryPanel"]
     RV --> MD["Markdown<br/>react-markdown + citation chips"]
     MD --> MM["Mermaid<br/>lazy SVG renderer"]
-    RV -.->|"lib/export.js"| EXP[".md download<br/>print-to-PDF"]
+    RV -.->|"lib/export.js + lib/docx.js"| EXP[".md download<br/>print-to-PDF<br/>.docx builder"]
     QF --> UI
     TR --> UI
     RV --> UI
@@ -1291,14 +1296,29 @@ if the element isn't found, it silently does nothing rather than throwing.
 | **Copy** | `navigator.clipboard.writeText` | Silent failure if blocked (insecure context) — no crash |
 | **`.md`** | `Blob` + object URL + synthetic anchor click | Pure client-side, no server round-trip, filename slugged from the title |
 | **PDF** | Open a new window, write styled HTML, `win.print()` | Uses the browser's native print-to-PDF — no jsPDF/html2canvas dependency, real selectable text, no extra 100 kB |
+| **`.docx`** | `docx` (lazy) + a Markdown→OOXML converter, `Packer.toBlob` | Real Word styles and tables, and diagrams rasterised to PNG so they survive into Word |
 
 The PDF path **inline-styles the print document** rather than reusing app CSS, because the
 app's dark theme and layout would print badly. It's a small, isolated duplication in exchange
 for a print output that looks like a document, not a screenshot of a dashboard.
 
+**Citations in exports.** A citation used to render as a `<button onClick>` with no `href`,
+and the print window never included the sources list — so `[n]` in a saved PDF pointed at
+nothing. Citations are now real `<a href="#source-n">` elements (the click is still
+intercepted in-app so it scrolls the source panel instead of jumping), and both the print
+document and the DOCX append a **Sources** appendix carrying the same `#source-n` ids. Source
+titles and URLs are untrusted web text and are HTML-escaped before being interpolated into the
+print window, which shares this origin.
+
+The `docx` builder is deliberately a small hand-written converter over the subset the writer
+actually emits (headings, paragraphs, lists, GFM tables, blockquotes, fenced code, Mermaid)
+rather than a general Markdown engine — a general one would pull far more code than this
+report format can produce. `docx` is imported lazily, so its ~467 kB lands in its own chunk
+and is never fetched unless someone exports.
+
 ### 13.6 Mermaid diagrams in the report
 
-The writer agent is instructed ([§8.3](#83-the-writer-prompt-and-report_spec)) to emit one or two
+The writer agent is instructed ([§8.3](#83-the-writer-prompt-and-the-format-spec)) to emit one or two
 ```` ```mermaid ```` blocks. Rendering them is the interesting part, because the report is
 **streamed token by token** — at any given moment the Markdown is a partial document.
 
@@ -1419,7 +1439,8 @@ it is for the pipeline to quietly regress.
 
 | Method | Route | Request | Response |
 |---|---|---|---|
-| `POST` | `/api/research/stream` | `{ "query": "…" }` | `text/event-stream` of the 13 event types |
+| `POST` | `/api/research/stream` | `{ "query": "…", "reportType": "analyst" }` | `text/event-stream` of the 13 event types |
+| `GET` | `/api/research/types` | — | `{ types: [{id,label,blurb}…] }` — metadata only, no prompt text |
 | `GET` | `/api/research` | — | `{ reports: [summary…] }`, newest first |
 | `GET` | `/api/research/:id` | — | full record, or `404` |
 | `DELETE` | `/api/research/:id` | — | `{ removed: boolean }`, `404` if absent |
@@ -1567,6 +1588,9 @@ diagram and styling work was added:
 | **Mock mode is gone** | `grep -ri mock backend/src frontend/src` finds no code (only explanatory comments); `agents/mock.js` and `db/fileStore.js` deleted | ✅ |
 | **Missing config fails fast** | `node src/index.js` with no `MONGODB_URI`/`CLERK_*`: printed the three missing keys and exited `1` | ✅ |
 | **Unauthenticated requests are rejected** | `createApp()` imported directly (no Mongo needed, format-valid placeholder Clerk keys): `GET /api/health` → `200`, `GET /api/research` → `401`, `POST /api/research/stream` → `401` | ✅ |
+| **PDF citations resolve** | Built the print document into a stub window and asserted the citation `href="#source-1"` and a matching `id="source-1"` target both land in it, the report H1 is deduped, and hostile source titles/URLs come out escaped | ✅ 11/11 |
+| **DOCX is a real Word file** | Built a document and read `word/document.xml` back out of the produced OOXML zip: title, headings, table header/body cells, list items, blockquote, code, citations (`[2, 3]`) and the sources appendix all present | ✅ 21/21 |
+| **The chosen format changes the deliverable** | Live run with `reportType=brief`: 561 words (vs ~1,491 for the analyst format), H2 sections exactly `Bottom line · Key findings · What to watch · Limitations`, no analyst methodology section, and `reportType` present on both the `meta` event and the stored record | ✅ |
 | Markdown → Mermaid wiring | SSR smoke render of `Markdown.jsx` asserting the fence becomes `Mermaid`, the source does **not** leak into markup, citations become chips, code fences survive, GFM tables render | ✅ 8/8 |
 | Tailwind tokens actually emitted | Grepped the built CSS for `rounded-panel`, `rounded-control`, `shadow-panel`, `bg-inset`, `text-muted`, `text-planner`, `bg-researcher`, `text-critic`, and the unlayered `.source-card.flash` rule | ✅ |
 | Lint + build | `eslint` clean (exit 0), `vite build` successful (exit 0), with `pipefail` + explicit status capture | ✅ |
@@ -1581,7 +1605,7 @@ And what still cannot be verified here:
 | Citation-chip scroll & flash | Needs a browser | Interaction could be subtly wrong — the CSS layer-precedence bug found by reading the built CSS is exactly this class of risk |
 | Tailwind's visual result | Needs a browser | Layout/spacing regressions are invisible to `lint` and `build` |
 | **The integrity strip, phase badge, self-critique `<details>` panel** | Needs a browser | The data is verified to be present on the wire (`critique` + `audit` frames captured); only its *presentation* is unproven |
-| Export buttons (copy/.md/PDF) | Needs a browser | Untested |
+| Export buttons (copy/.md/PDF/DOCX) and the landing page | Needs a browser | Untested |
 | MongoDB driver at runtime | No `MONGODB_URI` provided ("still no db") | `mongoStore.js` is written and type-consistent but never executed |
 | Multiple providers simultaneously | Only Gemini was available | Other base URLs unproven in practice |
 
@@ -1810,6 +1834,33 @@ Each entry: the decision, what was rejected, why, and what it costs.
   deliberately: the failure message names exactly what is missing, so the fix is one command
   away, and the product never lies about whether output is real research.
 
+### ADR-25: Six selectable report formats
+
+- **Decision:** the user picks the deliverable before running — analyst report, executive
+  brief, comparison, timeline, risk assessment, or evidence review. Each format is a distinct
+  section structure *and* a distinct writing stance, and it drives the writer and revisor
+  prompts for the run. The choice is stored on the report so it can be labelled on reload.
+- **Rejected:** one universal report with a "length" or "tone" knob; and letting the user
+  supply a free-form format prompt.
+- **Why:** the questions people actually ask are not all the same shape. "Which of these two
+  is better?" wants a comparison table and a verdict; "what happened, in what order?" wants a
+  chronology with dated entries. Forcing either into the analyst template answers the question
+  badly, and no amount of tuning on one template fixes that — the *structure* is the problem,
+  not the prose. A small closed set keeps output predictable and lets each format be tuned and
+  tested on its own. Free-form format prompts were rejected because they make the output
+  impossible to reason about and hand unbounded text a privileged position in the prompt.
+- **How it holds together:** `prompts.js` stays string-only — the per-format structures are
+  plain exports, and the writer/revisor system prompts became functions that interpolate one.
+  The shared detail/citation/diagram rules are factored into `SHARED_RULES` so every format
+  inherits them; a format cannot silently drop the citation rules. Only `{id,label,blurb}`
+  crosses to the browser — the prompt text never leaves the server. An unknown or absent id
+  resolves to the default rather than reaching a prompt as `undefined`, and an explicitly
+  invalid id in the API body is rejected with `400`.
+- **Cost:** six structures to keep in sync with what the critic expects, and the critic's
+  `structure` check remains format-agnostic — it can tell that a required section is missing,
+  but it does not know which sections the *chosen* format requires. Noted in
+  [§20](#20-known-limitations-and-honest-gaps).
+
 ---
 
 ## 17. Security & robustness
@@ -2003,6 +2054,7 @@ Ordered by how much they'd matter if this became more than a local tool.
 | 13 | **The critic is the same model family as the writer** | A shared blind spot can survive an adversarial review | The critique is one prompt in one file; pointing it at a *different* provider is a small, high-value change |
 | 14 | **Deep fetch reads only the top-N ranked URLs** | A lower-ranked source with the best primary data is never read in full | Make `DEEP_FETCH_SOURCES` adaptive (e.g. read more when coverage is low) or rank by something other than Tavily's score |
 | 15 | **The revision is unconditional, so it always costs ~6 s + tokens** | Slightly wasteful on an already-clean draft | ADR-21 explains why this was accepted; a cheap gate would need a trustworthy signal, which the `verdict` field demonstrably was not |
+| 16 | **The critic does not know the chosen report format** | Its `structure` check can flag a missing section but not a missing *required* section for formats other than the analyst one | Pass the resolved format's section list into the critic prompt so it can audit against it ([ADR-25](#adr-25-six-selectable-report-formats)) |
 
 ---
 
@@ -2054,7 +2106,8 @@ backend/
       citations.js                 pure: auditCitations() + sanitizeCitations()
       writer.js                    everything → streamed draft (writeDraft),
                                    draft + critique → streamed revision (reviseReport)
-      prompts.js                   all prompt text incl. REPORT_SPEC; zero logic
+      prompts.js                   all prompt text (systems + per-format structures); zero logic
+      reportTypes.js               the six selectable formats + resolveReportType()
     services/
       search.js                    Tavily + normalisation + full-page extract
     routes/
@@ -2065,19 +2118,21 @@ backend/
 frontend/
   vite.config.js                   react + @tailwindcss/vite plugins
   src/
-    api.js                         SSE POST-stream parser + REST helpers
+    api.js                         SSE POST-stream parser + REST helpers (Bearer token)
     index.css                      Tailwind import, theme tokens, .markdown styles
     hooks/useResearch.js           run lifecycle state machine
-    App.jsx                        ClerkProvider gate, composition, health + history + tabs
+    App.jsx                        signed-out → Landing; signed-in shell, tabs, format state
     lib/
       cn.js                        class-name join helper
-      export.js                    .md download + print-to-PDF
+      export.js                    .md download + print-to-PDF (with sources appendix)
+      docx.js                      Markdown → .docx (headings/tables/images/sources)
       format.js                    hostOf / timeAgo / slugify / wordCount
     components/
       ui/                          Button, Panel (+PanelHead), Badge
       QueryForm.jsx                input, examples, run/stop
       AgentTrace.jsx               phase badge, scope note, plan checklist, step trace
-      ReportView.jsx               meta, toolbar (copy/.md/PDF),
+      Landing.jsx                  signed-out marketing page
+      ReportView.jsx               meta, toolbar (copy/.md/PDF/DOCX),
                                    integrity strip, self-critique disclosure
       SourcesPanel.jsx             numbered source cards (#source-n anchors), dims uncited
       HistoryPanel.jsx             saved reports, open/delete

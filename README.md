@@ -12,7 +12,7 @@ against its own sources, **revises** it, and runs a **citation audit** before
 - **N**ode.js 18+
 
 > 📐 **Architecture & decision record:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) —
-> every design decision with the alternatives that were rejected, 24 ADRs,
+> every design decision with the alternatives that were rejected, 25 ADRs,
 > 16 diagrams, and measured performance. Read it before changing anything structural.
 
 ---
