@@ -1,8 +1,7 @@
 import { chatJSON } from '../llm.js'
 import config from '../config.js'
+import { asText } from './normalize.js'
 import { PLANNER_SYSTEM, plannerUser } from './prompts.js'
-
-const asText = (value) => (typeof value === 'string' ? value.trim() : '')
 
 /**
  * Planner agent — turns a broad topic into a focused set of searchable

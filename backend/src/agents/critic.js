@@ -1,11 +1,10 @@
 import { chatJSON } from '../llm.js'
 import config from '../config.js'
+import { asText } from './normalize.js'
 import { CRITIC_SYSTEM, criticUser } from './prompts.js'
 
 const SEVERITIES = new Set(['high', 'medium', 'low'])
 const VERDICTS = new Set(['solid', 'minor-issues', 'needs-revision'])
-
-const asText = (value) => (typeof value === 'string' ? value.trim() : '')
 
 function normalise(data) {
   const issues = (Array.isArray(data.issues) ? data.issues : [])

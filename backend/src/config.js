@@ -62,8 +62,6 @@ const config = {
     deepFetchSources: clamp(int(process.env.DEEP_FETCH_SOURCES, 3), 0, 8),
     // Run the critic → revisor pass before persisting the report.
     critique: bool(process.env.RESEARCH_CRITIQUE, true),
-    // How many of the top-scoring citations the critic is asked to verify.
-    verifyCitations: clamp(int(process.env.VERIFY_CITATIONS, 8), 0, 25),
   },
 
   // MongoDB is the only storage driver — see db/index.js. There is no file

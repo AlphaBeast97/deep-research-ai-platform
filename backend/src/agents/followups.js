@@ -1,5 +1,6 @@
 import { chatJSON } from '../llm.js'
 import config from '../config.js'
+import { asText } from './normalize.js'
 import { FOLLOWUP_SYSTEM, followUpUser } from './prompts.js'
 
 /**
@@ -26,9 +27,9 @@ export async function proposeQueries(question, extraction, alreadyAsked = []) {
 
   const asked = new Set(alreadyAsked.map((q) => q.toLowerCase().trim()))
   const queries = (Array.isArray(data.queries) ? data.queries : [])
-    .map((q) => (typeof q === 'string' ? q.trim() : ''))
+    .map(asText)
     .filter((q) => q && !asked.has(q.toLowerCase()))
     .slice(0, max)
 
-  return { queries, reason: typeof data.reason === 'string' ? data.reason.trim() : '', usage }
+  return { queries, reason: asText(data.reason), usage }
 }

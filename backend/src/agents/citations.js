@@ -12,6 +12,9 @@
  */
 const CITATION_RE = /\[(\d+(?:\s*,\s*\d+)*)\](?!\()/g
 
+// ``` … ``` and ~~~ … ~~~ fences. Capturing, so `String.split` keeps them.
+const FENCED_BLOCK_RE = /(```[\s\S]*?```|~~~[\s\S]*?~~~)/g
+
 const numbersIn = (group) =>
   group
     .split(',')
@@ -60,13 +63,26 @@ export function auditCitations(report, sources) {
 /**
  * Drop citation numbers that do not resolve to a real source. A group such as
  * `[2, 9]` becomes `[2]`; a group with nothing valid left is removed entirely.
+ *
+ * Fenced blocks (Mermaid diagrams, code samples) are left untouched by the
+ * whitespace tidy-up: collapsing runs of spaces is right for prose, but it would
+ * reflow a diagram's indentation.
  */
 export function sanitizeCitations(report, validIndexes) {
   const valid = validIndexes instanceof Set ? validIndexes : new Set(validIndexes)
+
+  const strip = (text) =>
+    text
+      .replace(CITATION_RE, (_match, group) => {
+        const kept = numbersIn(group).filter((n) => valid.has(n))
+        return kept.length ? `[${kept.join(', ')}]` : ''
+      })
+      // Close up the gap a deleted marker leaves behind.
+      .replace(/[ \t]{2,}/g, ' ')
+
+  // `split` keeps each fenced block at an odd index (the pattern is capturing).
   return String(report || '')
-    .replace(CITATION_RE, (_match, group) => {
-      const kept = numbersIn(group).filter((n) => valid.has(n))
-      return kept.length ? `[${kept.join(', ')}]` : ''
-    })
-    .replace(/[ \t]{2,}/g, ' ')
+    .split(FENCED_BLOCK_RE)
+    .map((part, i) => (i % 2 ? part : strip(part)))
+    .join('')
 }

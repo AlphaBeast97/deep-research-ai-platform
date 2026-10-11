@@ -85,18 +85,24 @@ export async function save(record) {
 }
 
 export async function list(ownerId) {
-  const records = await Report.find({ ownerId }, { report: 0, steps: 0 })
-    .sort({ createdAt: -1 })
-    .limit(100)
-    .lean()
-  return records.map((r) => ({
-    id: r.id,
-    query: r.query,
-    title: r.title,
-    createdAt: r.createdAt,
-    status: r.status,
-    sourceCount: Array.isArray(r.sources) ? r.sources.length : 0,
-  }))
+  // The history list wants a source *count*, not the sources: projecting `$size`
+  // keeps a long report's titles, URLs and snippets out of the response.
+  return Report.aggregate([
+    { $match: { ownerId } },
+    { $sort: { createdAt: -1 } },
+    { $limit: 100 },
+    {
+      $project: {
+        _id: 0,
+        id: 1,
+        query: 1,
+        title: 1,
+        createdAt: 1,
+        status: 1,
+        sourceCount: { $size: { $ifNull: ['$sources', []] } },
+      },
+    },
+  ])
 }
 
 export async function get(id, ownerId) {

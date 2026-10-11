@@ -75,5 +75,8 @@ export const REPORT_TYPES = TYPES.map(({ id, label, blurb }) => ({ id, label, bl
 
 /** Look a type up by id, falling back to the default for unknown/absent values. */
 export function resolveReportType(id) {
-  return TYPES.find((type) => type.id === id) || TYPES[0]
+  return (
+    TYPES.find((type) => type.id === id) ||
+    TYPES.find((type) => type.id === DEFAULT_REPORT_TYPE)
+  )
 }

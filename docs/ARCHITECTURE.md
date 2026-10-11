@@ -910,15 +910,14 @@ flowchart TD
 `llmConfigured = Boolean(apiKey || baseUrl)` — **either** is enough. This is what makes
 local servers (Ollama, LM Studio, vLLM) work: they need no key, only a base URL.
 
-### 10.4 The three call styles
+### 10.4 The two call styles
 
-`llm.js` exposes exactly three functions, matching the three shapes of work:
+`llm.js` exposes exactly two functions, matching the two shapes of work:
 
 | Function | `stream` | `response_format` | Temperature | Used by |
 |---|---|---|---|---|
-| `chatJSON` | false | `json_object` (if `jsonMode`) | 0.2–0.3 | planner, researcher |
-| `chatStream` | **true** | none | 0.4–0.5 | writer |
-| `chat` | false | none | 0.3 | (reserved: polish passes) |
+| `chatJSON` | false | `json_object` (if `jsonMode`) | 0.1–0.4 | planner, researcher, followups, critic |
+| `chatStream` | **true** | none | 0.35–0.5 | writer (draft + revision) |
 
 **Why `chatStream` never asks for JSON mode:** the writer produces Markdown prose, and
 `json_object` would force it to wrap the report in a JSON string — destroying the
@@ -1045,13 +1044,14 @@ fetchPages(urls) → Map<url, text>
 
 ### 12.1 The interface
 
-`db/index.js` picks a driver once, at import, and re-exports the same five functions for both:
+`db/index.js` is the one place the store is chosen, and it re-exports owner-scoped
+wrappers so no caller ever touches the driver directly:
 
 ```js
-export const save   = (record)      => store.save(record)
-export const list   = ()            => store.list()
-export const get    = (id)          => store.get(id)
-export const remove = (id)          => store.remove(id)
+export const save   = (record)         => mongoStore.save(record)
+export const list   = (ownerId)        => mongoStore.list(ownerId)
+export const get    = (id, ownerId)    => mongoStore.get(id, ownerId)
+export const remove = (id, ownerId)    => mongoStore.remove(id, ownerId)
 export async function initStorage() { … }
 ```
 
@@ -1083,12 +1083,11 @@ impossible to skip ([ADR-11](#adr-11-storage-facade)).
 
 ### 12.3 Why `list()` projects instead of fetching everything
 
-`mongoStore.list()` returns summaries using a **projection** (`{ report: 0, steps: 0 }`) plus a
-`.limit(100)`. The projection avoids transferring megabytes of report text just to render a
-history sidebar, and the limit bounds the payload for a user with a long history.
-
-(The earlier file-store driver stripped fields in JavaScript; with that driver gone there is no
-longer an asymmetry to explain, just a projection.)
+`mongoStore.list()` runs an **aggregation** that projects exactly the summary fields and computes
+the source count server-side (`sourceCount: { $size: { $ifNull: ['$sources', []] } }`), capped at
+100. A plain `find` would still have to transfer every source's title, URL and snippet just so the
+sidebar could show a number; `$size` keeps that off the wire, and the limit bounds the payload for
+a user with a long history.
 
 ### 12.4 The stored record
 
@@ -1427,7 +1426,6 @@ it is for the pipeline to quietly regress.
 | `DEEP_FETCH` | `true` | read full pages via Tavily `extract` | snippets only = thinner report |
 | `DEEP_FETCH_SOURCES` | `3` | pages read per sub-question, **clamped 0–8** | higher = much larger prompts and slower |
 | `RESEARCH_CRITIQUE` | `true` | run the critic + revision phases | off = no revision pass, faster |
-| `VERIFY_CITATIONS` | `8` | **reserved** — parsed into `config.research.verifyCitations` but no consumer yet (see [§20](#20-known-limitations-and-honest-gaps) #12) | currently a no-op |
 | `MONGODB_URI` | — | MongoDB Atlas connection string (**required**) | **exit(1)** at boot |
 | `CLERK_SECRET_KEY` | — | Clerk secret key; verifies sessions (**required**, server-only) | **exit(1)** at boot |
 | `CLERK_PUBLISHABLE_KEY` | — | Clerk publishable key (**required**) | **exit(1)** at boot |
@@ -2050,11 +2048,10 @@ Ordered by how much they'd matter if this became more than a local tool.
 | 9 | **Search quality unseen** | A run with no results still "succeeds" | Surface `gaps` prominently in the UI; warn when `gaps` is non-empty |
 | 10 | **No automated test suite** | Regressions caught only by manual runs | The pure pieces (citations, planner parsing, `missingKeys`) are the cheapest first tests; the network calls need stubbing |
 | 11 | **Report diagrams are LLM-authored** | A malformed ```` ```mermaid ```` block shows the "could not render" fallback instead of a diagram | The fallback and the prompt constraints already contain it; a server-side `mermaid.parse` guard could reject bad blocks before persisting |
-| 12 | **`VERIFY_CITATIONS` is parsed but unused** | A documented config knob that does nothing is worse than no knob — it implies verification that isn't happening | Wire it to a per-citation source-check pass, or delete it and the `.env.example` line |
-| 13 | **The critic is the same model family as the writer** | A shared blind spot can survive an adversarial review | The critique is one prompt in one file; pointing it at a *different* provider is a small, high-value change |
-| 14 | **Deep fetch reads only the top-N ranked URLs** | A lower-ranked source with the best primary data is never read in full | Make `DEEP_FETCH_SOURCES` adaptive (e.g. read more when coverage is low) or rank by something other than Tavily's score |
-| 15 | **The revision is unconditional, so it always costs ~6 s + tokens** | Slightly wasteful on an already-clean draft | ADR-21 explains why this was accepted; a cheap gate would need a trustworthy signal, which the `verdict` field demonstrably was not |
-| 16 | **The critic does not know the chosen report format** | Its `structure` check can flag a missing section but not a missing *required* section for formats other than the analyst one | Pass the resolved format's section list into the critic prompt so it can audit against it ([ADR-25](#adr-25-six-selectable-report-formats)) |
+| 12 | **The critic is the same model family as the writer** | A shared blind spot can survive an adversarial review | The critique is one prompt in one file; pointing it at a *different* provider is a small, high-value change |
+| 13 | **Deep fetch reads only the top-N ranked URLs** | A lower-ranked source with the best primary data is never read in full | Make `DEEP_FETCH_SOURCES` adaptive (e.g. read more when coverage is low) or rank by something other than Tavily's score |
+| 14 | **The revision is unconditional, so it always costs ~6 s + tokens** | Slightly wasteful on an already-clean draft | ADR-21 explains why this was accepted; a cheap gate would need a trustworthy signal, which the `verdict` field demonstrably was not |
+| 15 | **The critic does not know the chosen report format** | Its `structure` check can flag a missing section but not a missing *required* section for formats other than the analyst one | Pass the resolved format's section list into the critic prompt so it can audit against it ([ADR-25](#adr-25-six-selectable-report-formats)) |
 
 ---
 
@@ -2094,7 +2091,7 @@ backend/
     index.js                       bootstrap: validate config → connect Mongo → listen
     app.js                         Express app factory (Clerk middleware, CORS, routes, health)
     config.js                      env resolution, required-key validation, derived flags
-    llm.js                         OpenAI-SDK transport: chatJSON / chatStream / chat
+    llm.js                         OpenAI-SDK transport: chatJSON / chatStream
     agents/
       orchestrator.js              the 6-phase pipeline; emits all 13 SSE event types;
                                    owns the gap loop, deep fetch, page-text Map
@@ -2104,6 +2101,7 @@ backend/
       followups.js                 gaps → new gap-targeted queries (dedupes alreadyAsked)
       critic.js                    draft → typed critique; hasMaterialIssues()
       citations.js                 pure: auditCitations() + sanitizeCitations()
+      normalize.js                 shared asText()/asStrings() coercions for model JSON
       writer.js                    everything → streamed draft (writeDraft),
                                    draft + critique → streamed revision (reviseReport)
       prompts.js                   all prompt text (systems + per-format structures); zero logic

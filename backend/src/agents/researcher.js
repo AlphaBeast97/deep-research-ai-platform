@@ -1,13 +1,9 @@
 import { chatJSON } from '../llm.js'
 import config from '../config.js'
+import { asStrings, asText } from './normalize.js'
 import { RESEARCHER_SYSTEM, researcherUser } from './prompts.js'
 
 const CONFIDENCE = new Set(['high', 'medium', 'low'])
-
-const asText = (value) => (typeof value === 'string' ? value.trim() : '')
-
-const asStrings = (value) =>
-  Array.isArray(value) ? value.map(asText).filter(Boolean) : []
 
 function asCoverage(value) {
   const n = Number.parseInt(value, 10)

@@ -64,19 +64,3 @@ export async function chatStream({ system, user, model, temperature = 0.4, onTok
   }
   return text
 }
-
-/** Non-streaming completion, used for post-synthesis polish passes. */
-export async function chat({ system, user, model, temperature = 0.3 }) {
-  const completion = await client.chat.completions.create({
-    model: model || config.llm.smartModel,
-    temperature,
-    messages: [
-      { role: 'system', content: system },
-      { role: 'user', content: user },
-    ],
-  })
-  return {
-    text: completion.choices[0]?.message?.content || '',
-    usage: completion.usage,
-  }
-}

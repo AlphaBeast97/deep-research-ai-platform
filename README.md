@@ -84,7 +84,9 @@ reports coverage for the UI.
 │       │   ├── writer.js        # writeDraft + reviseReport (both streamed)
 │       │   ├── critic.js        # critique() + hasMaterialIssues()
 │       │   ├── citations.js     # pure citation audit + sanitizer
-│       │   └── prompts.js       # all 7 agent prompts in one place
+│       │   ├── reportTypes.js   # the six selectable report formats
+│       │   ├── normalize.js     # shared model-output coercions
+│       │   └── prompts.js       # all prompt text (6 systems + format specs)
 │       ├── services/search.js   # Tavily search + fetchPages (full-text extract)
 │       ├── routes/research.js   # SSE + history endpoints (auth-guarded)
 │       └── db/
@@ -97,9 +99,10 @@ reports coverage for the UI.
         ├── index.css            # Tailwind v4 + theme tokens + report styles
         ├── api.js               # SSE parser + REST calls (Bearer token)
         ├── hooks/useResearch.js # run lifecycle state machine (13 events)
-        ├── lib/                 # format · export · class-name helpers
+        ├── lib/                 # format · export · docx · class-name helpers
         └── components/
             ├── ui/              # Button · Panel · Badge primitives
+            ├── Landing.jsx      # signed-out marketing page
             ├── QueryForm · AgentTrace · ReportView
             ├── SourcesPanel · HistoryPanel
             └── Markdown.jsx · Mermaid.jsx   # report rendering + diagrams
@@ -271,7 +274,6 @@ All backend settings live in `backend/.env` (see `.env.example`):
 | `DEEP_FETCH` | `true` | Read full page text for the strongest sources instead of snippets only |
 | `DEEP_FETCH_SOURCES` | `3` | Pages read in full per sub-question (0–8) |
 | `RESEARCH_CRITIQUE` | `true` | Run the critic → revisor pass before saving |
-| `VERIFY_CITATIONS` | `8` | Reserved — parsed into config but not yet consumed |
 
 To make runs much faster at the cost of depth, set `RESEARCH_MAX_ROUNDS=0`,
 `DEEP_FETCH=false` and `RESEARCH_CRITIQUE=false`.
@@ -364,5 +366,4 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
   spots — it is a useful second pass, not an independent adjudicator.
 - Deep fetch only pulls the top-ranked URLs per sub-question; long pages are
   truncated (currently ~6,000 chars) before extraction.
-- `VERIFY_CITATIONS` is parsed but not yet consumed by any agent.
 - Any OpenAI-compatible LLM works via `LLM_BASE_URL` — but quality varies. Very small local models may produce malformed JSON or weak citations; `LLM_JSON_MODE=false` plus a larger model helps.
