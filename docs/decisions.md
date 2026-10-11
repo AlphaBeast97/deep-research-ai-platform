@@ -1,0 +1,255 @@
+# MAD Researcher — Decision log (ADRs)
+
+> Part of the [architecture record](ARCHITECTURE.md). Section numbers are the
+> originals from the single-file version, so existing references still resolve.
+
+---
+
+## 16. The decision log
+
+Each entry: the decision, what was rejected, why, and what it costs.
+
+### ADR-01: OpenAI SDK as transport, not vendor
+
+- **Decision:** use `openai` npm purely as an HTTP client for `/v1/chat/completions`, pointed at `LLM_BASE_URL`.
+- **Rejected:** Writing raw `fetch` calls; or assuming an OpenAI account.
+- **Why:** the SDK correctly handles streaming delta accumulation, retries, and error shapes — genuinely non-trivial code we don't want to own. The protocol is a de-facto standard.
+- **Cost:** a package named "openai" appears in `package.json`. This is cosmetic: `config.js` never requires an OpenAI key or default model. **Explicitly stated because it caused friction** — see the provider-neutral naming in [§10.2](backend.md#102-how-the-environment-resolves).
+
+### ADR-02: Own the orchestration, no agent framework
+
+- **Decision:** hand-write the planner/researcher/writer loop.
+- **Rejected:** LangChain, LlamaIndex, CrewAI, AutoGen.
+- **Why:** the pipeline is a `for` loop over sub-questions plus three prompt calls. A framework would add hundreds of transitive dependencies, obscure the exact request/response shapes, make streaming-through-SSE harder to control, and introduce its own version churn — all to replace ~60 lines we fully understand.
+- **Cost:** we implement retries/telemetry ourselves if we want them later.
+
+### ADR-03: Layer by systems touched, not by feature
+
+- **Decision:** `agents/` (LLM) and `services/` (external APIs) are separate; `prompts.js` holds only strings.
+- **Rejected:** grouping by feature (e.g. `research/planner-with-search.js`).
+- **Why:** the two axes of change are "which model/prompt" and "which data source". Separating them means each change is local and the blast radius is obvious.
+- **Cost:** slightly more files than a single-module design.
+
+### ADR-04: POST SSE with hand parsing
+
+- **Decision:** stream over a POST response body and parse `data:` frames in `api.js`.
+- **Rejected:** `EventSource` + GET (no body); WebSockets (bidirectional, overkill); polling.
+- **Why:** we need one-way progress with a JSON request body and cancellability. Full detail in [§9.1](backend.md#91-transport-choice).
+- **Cost:** no browser auto-reconnect; ~30 lines of buffer-splitting that must respect chunk boundaries.
+
+### ADR-05: A nine-event vocabulary rather than raw text only
+
+- **Decision:** emit typed events (`meta/status/plan/step/sources/findings/token/done/error`) alongside tokens.
+- **Rejected:** streaming only the report text.
+- **Why:** the product's differentiator is *transparency*. Typed events let the UI render a plan checklist, a per-source panel, and an agent trace — none of which is derivable from report text alone.
+- **Cost:** a wider contract between backend and frontend; every new event type needs a client `case`.
+- **Since:** the vocabulary has grown to thirteen — `phase`, `critique`, `report-reset` and `audit` were added as the UI learned to show a phase badge, the self-critique, and the integrity strip. The decision is unchanged; the cost line is what grew ([§9.3](backend.md#93-event-taxonomy)).
+
+### ADR-06: Pass model names through unvalidated
+
+- **Decision:** `LLM_MODEL` goes verbatim to the provider.
+- **Rejected:** a validation/mapping table of known model names.
+- **Why:** any such table is stale within weeks, and it would silently rewrite names instead of surfacing typos. Providers are the source of truth.
+- **Cost:** demonstrated by the 404 incident in [§15.2](verification.md#152-the-model-id-incident-the-reason-this-trade-off-gets-a-whole-section). Mitigated by reporting resolved models in `/api/health` and the boot banner.
+
+### ADR-07: Two model tiers with an implicit fallback
+
+- **Decision:** `LLM_MODEL` (researcher) and `LLM_MODEL_SMART` (planner/writer), the latter defaulting to the former.
+- **Rejected:** one model everywhere; or a mandatory second setting.
+- **Why:** cost scales with call count — the researcher is called N times. Defaulting keeps single-model providers working.
+- **Cost:** operators must understand which agent uses which tier (documented in the README table and [§7.1](agents.md#71-the-pipeline-in-six-phases)).
+
+### ADR-08: Tavily behind a normalising wrapper
+
+- **Decision:** `services/search.js` exposes `webSearch()` returning a fixed `{title,url,snippet,score}` shape.
+- **Rejected:** calling Tavily directly from the researcher agent.
+- **Why:** normalisation protects against missing titles, whitespace blowup, and prompt-flooding; it also makes the search provider swappable in one file.
+- **Cost:** any Tavily field we don't map is unavailable upstream (intentional).
+
+### ADR-09: File store as default; database optional
+
+> **Superseded by [ADR-24](#adr-24-delete-mock-mode-and-the-file-store).** The reasoning was
+> right for a single-operator demo and wrong once reports belong to accounts.
+
+- **Decision:** ship a JSON file store as default; provide a full Mongo adapter one env var away.
+- **Rejected:** requiring MongoDB to start.
+- **Why:** zero-setup onboarding (goal **G6**). A developer must be able to clone, `npm install`, `npm run dev` and see the product work — no cloud account, no connection string.
+- **Cost:** the "MERN" claim is only true in the configured sense. Fully mitigated by the facade ([ADR-11](#adr-11-storage-facade)). The file store also rewrites the whole document on each save — fine for a single user, not for scale ([§20](verification.md#20-known-limitations-and-honest-gaps)).
+
+### ADR-10: Fail fast on storage init failure
+
+- **Decision:** if `initStorage()` throws, log and `process.exit(1)`.
+- **Rejected:** falling back to a local store (or to canned data) when Mongo is unreachable.
+- **Why:** silent fallback is a data-integrity trap — the connection fails and the app quietly writes reports somewhere the operator will never look. This now applies to *every* required key, not just storage ([ADR-24](#adr-24-delete-mock-mode-and-the-file-store)). A loud failure is the honest behaviour.
+- **Cost:** no automatic resilience; the operator must fix `MONGODB_URI`.
+
+### ADR-11: Storage facade
+
+- **Decision:** all consumers import `db/index.js`; it owns the Mongoose store and the owner-scoping.
+- **Rejected:** importing the concrete store at each call site.
+- **Why:** the facade is now the single place that enforces `ownerId` scoping, so no route can accidentally query across users ([ADR-23](#adr-23-clerk-auth-with-owner-scoped-reports)). It previously also made the driver swappable; with the file store gone ([ADR-24](#adr-24-delete-mock-mode-and-the-file-store)) that benefit is moot, but the scoping benefit is larger.
+- **Cost:** one indirection layer.
+
+### ADR-12: Flatten plan into `subQuestions` on persist
+
+- **Decision:** the stored record contains `subQuestions: [String]`, not the live `plan` object.
+- **Rejected:** persisting the full `{title, subQuestions:[{question,intent}]}` plan.
+- **Why:** the persisted document should be narrow and stable. `intent` guides the writer at generation time and is not needed to re-render a history entry. Arrays of strings index and validate cleanly in Mongo.
+- **Cost:** *this was briefly mistaken for a bug* during verification — reading `record.plan` returned `{}` because the field is named `subQuestions`. Documented here so the next person doesn't "fix" a non-bug. The frontend maps it back: `(record.subQuestions ?? []).map(q => ({ question: q }))`.
+
+### ADR-13: Citations inline; no reference list
+
+- **Decision:** the writer emits `[n]` inline and is explicitly told not to append a references section.
+- **Rejected:** letting the model produce its own bibliography.
+- **Why:** the UI renders a canonical, always-correct source list from the actual retrieved data. A model-authored bibliography would duplicate it, could drift from the real sources, and would waste output tokens.
+- **Cost:** the report is only self-contained inside this app; a raw copy-paste loses the reference list. Acceptable — the `.md` export is a *report*, and the sources panel is the source of truth.
+
+### ADR-14: `react-markdown` instead of `innerHTML`
+
+- **Decision:** render model output with `react-markdown` + `remark-gfm`.
+- **Rejected:** `dangerouslySetInnerHTML` with a Markdown→HTML converter.
+- **Why:** the rendered content is **untrusted** — it is model output that describes **third-party web content**. Injecting that as raw HTML is a direct XSS vector. `react-markdown` builds React elements and never executes markup.
+- **Cost:** one dependency; some HTML in Markdown isn't rendered. Worth it — this is the security boundary of the app.
+
+### ADR-15: Registration-free, single-user, global history
+
+> **Superseded by [ADR-23](#adr-23-clerk-auth-with-owner-scoped-reports).** Auth is now required.
+
+- **Decision:** no authentication.
+- **Rejected:** accounts, sessions, per-user scoping.
+- **Why:** scoped explicitly as a local/single-operator tool. Auth would dominate the codebase and the setup instructions for no benefit to the stated use case.
+- **Cost:** history is global and the API is open. **Do not expose this to the public internet as-is** — stated in [§17](backend.md#17-security--robustness) and [§20](verification.md#20-known-limitations-and-honest-gaps).
+
+### ADR-16: Automatic mock mode
+
+> **Superseded by [ADR-24](#adr-24-delete-mock-mode-and-the-file-store).** Mock mode is removed.
+
+- **Decision:** when the LLM or Tavily is unconfigured, run the *real* pipeline with canned data.
+- **Rejected:** refusing to start, or returning an error.
+- **Why:** it makes the product demonstrable in seconds, gives the frontend a stable fixture, and doubles as a test harness. The mock streams through the same SSE path, so it exercises the whole stack.
+- **Cost:** a user could mistake mock output for research — mitigated by the `Mock mode` badge, the in-report warning banner, and `[mock]` source titles.
+
+### ADR-17: Heartbeat + closed flag
+
+- **Decision:** `: ping` every 15 s; a `closed` flag guarding all writes.
+- **Rejected:** relying on the connection staying open.
+- **Why:** measured runs exceed 40 s with multi-second gaps ([§19](verification.md#19-performance-where-the-time-goes)); idle proxies would drop them. And writing to a client that navigated away would throw.
+- **Cost:** one interval timer per active run — negligible.
+
+### ADR-18: Client-side Mermaid with a syntax fallback
+
+- **Decision:** render ```` ```mermaid ```` blocks in the browser, debounced, with a hard fallback to the raw source when parsing fails.
+- **Rejected:** `rehype-mermaid` (needs a headless browser at build time), server-side pre-rendering to SVG (adds latency and a charting dependency to the write path), and skipping diagrams entirely.
+- **Why:** it leaves the ~42 s critical path unchanged, keeps the backend free of a charting library, and the fallback turns a bad diagram into a cosmetic problem instead of a blank report.
+- **Cost:** a few kB of wiring plus Mermaid's own lazily-fetched chunks. See [§13.6](frontend.md#136-mermaid-diagrams-in-the-report).
+
+### ADR-19: Tailwind v4 for styling
+
+- **Decision:** replace `App.css` and most of `index.css` with Tailwind v4 utilities, with the theme expressed as `@theme inline` tokens.
+- **Rejected:** hand-written CSS (already drifting), a component kit such as MUI or Chakra (a large dependency for six components), CSS modules (more files, no token system).
+- **Why:** utility classes remove dead CSS by construction, and routing the existing `--c-*` palette through `@theme inline` preserves the dark/light theming that was already there.
+- **Cost:** class-heavy JSX, plus one unlayered `.markdown` stylesheet for `react-markdown` output. See [§13.7](frontend.md#137-styling-tailwind-v4).
+
+### ADR-20: App factory separate from bootstrap
+
+- **Decision:** `app.js` exports `createApp()`; `index.js` initialises storage, builds the app, and listens.
+- **Rejected:** the single `index.js` this started as.
+- **Why:** importing a module must not bind a port or touch storage as a side effect. The factory makes the app importable and testable, and keeps the storage-failure exit ([ADR-10](#adr-10-fail-fast-on-storage-init-failure)) in the bootstrap where it belongs.
+- **Cost:** one extra file and one extra hop when tracing startup — a good trade.
+
+### ADR-21: The critique is advisory; the revision is unconditional
+
+- **Decision:** when `RESEARCH_CRITIQUE=true`, the revision pass runs **regardless of the
+  critic's `verdict`**. The verdict is stored and displayed, but it does not gate the revision.
+- **Rejected:** the original design, which skipped revision when `verdict === 'solid'` unless
+  the critique contained a high-severity issue.
+- **Why:** the gate was **wrong in practice, not merely in theory.** In the first measured
+  live run the critic returned `verdict: "solid"` *and* two issues, one of them a real uncited
+  claim — and the pipeline skipped the revision entirely because of the verdict. A model's
+  one-word summary of its own review is the least trustworthy part of that review; the typed
+  issue list is the trustworthy part, and it is right there to act on. Skipping work to save
+  two seconds of a four-minute run was a false economy.
+- **Cost:** the revision's ~6 s and its tokens on every run, plus a second streamed report
+  that the client must be told to clear (`report-reset`). Both accepted: the user explicitly
+  prioritised depth and verified integrity over latency.
+- **Safety net:** if the revision call fails or returns `< 120` words, the draft is kept and
+  `revised: false` is recorded — an improvement step may never make the output worse.
+
+### ADR-22: Sanitise citations instead of only reporting them
+
+- **Decision:** `auditCitations` finds unresolvable `[n]` references, and `sanitizeCitations`
+  **removes** them (preserving valid comma-lists), then the report is re-audited to record
+  how many were removed.
+- **Rejected:** reporting `invalid[]` to the UI and leaving the text untouched.
+- **Why:** a citation chip that points nowhere is worse than plain text, because it *looks
+  like evidence* and survives export to Markdown/PDF where the UI that would have revealed it
+  is gone. The audit is a pure function with no model in the loop, so there is no downside to
+  acting on its finding rather than merely displaying it.
+- **Cost:** the sanitised report differs slightly from what the model wrote — a `[37]` that
+  pointed at nothing becomes nothing. This is deliberate and is why `invalidRemoved` is
+  surfaced in the integrity strip rather than hidden.
+
+### ADR-23: Clerk auth with owner-scoped reports
+
+- **Decision:** authenticate with Clerk. `clerkMiddleware()` verifies a session on every
+  request; every `/api/research*` route requires one; each saved report carries the owner's
+  Clerk `userId`, and every read, list and delete filters on it.
+- **Rejected:** rolling our own sessions (password hashing, reset flows, token rotation —
+  a large security surface for no product benefit); leaving the tool single-user (ADR-15).
+- **Why:** reports are private user data, and "private" has to be enforced in the query, not
+  the UI. Scoping in `db/index.js` means a whole class of bug — forgetting to filter — cannot
+  happen at a call site. Clerk also gives us a maintained sign-in UI and the server-side
+  verification path for free.
+- **Why not session cookies:** the UI (`:5173`) and API (`:5000`) are different origins, so a
+  cookie would need `SameSite`/credentials gymnastics. A short-lived bearer token from
+  `getToken()` is simpler and works identically in dev and production.
+- **Cost:** two more required secrets, a third-party dependency on the critical path, and a
+  real deployment step (claim the Clerk app, switch to production keys). Requests without a
+  valid session now fail with `401` rather than returning global data.
+
+### ADR-24: Delete mock mode and the file store
+
+- **Decision:** remove mock mode and the JSON file store entirely. Missing configuration is a
+  **startup failure** (`missingKeys()` → print → `exit(1)`), not a degraded run.
+- **Rejected:** keeping mock mode as a demo/offline path; keeping the file store as a dev
+  fallback.
+- **Why:** mock mode was a *liability* once auth and private reports landed. Canned data has no
+  owner, so it can't satisfy the ownership invariant — and its presence made "is this real?"
+  a question the code had to keep answering (badges, warning banners, `mock` fields in the
+  event stream, the health payload, and the stored record). Deleting it removes a whole
+  parallel code path from the orchestrator, the search service, the LLM client, the config and
+  the UI. The file store had the same problem: a silent second store is a data-integrity trap,
+  and it cannot represent per-user ownership cleanly.
+- **Cost:** there is no zero-config demo any more. Cloning the repo now means creating a Clerk
+  app and an Atlas cluster before the server will boot. That is a real loss and is bought back
+  deliberately: the failure message names exactly what is missing, so the fix is one command
+  away, and the product never lies about whether output is real research.
+
+### ADR-25: Six selectable report formats
+
+- **Decision:** the user picks the deliverable before running — analyst report, executive
+  brief, comparison, timeline, risk assessment, or evidence review. Each format is a distinct
+  section structure *and* a distinct writing stance, and it drives the writer and revisor
+  prompts for the run. The choice is stored on the report so it can be labelled on reload.
+- **Rejected:** one universal report with a "length" or "tone" knob; and letting the user
+  supply a free-form format prompt.
+- **Why:** the questions people actually ask are not all the same shape. "Which of these two
+  is better?" wants a comparison table and a verdict; "what happened, in what order?" wants a
+  chronology with dated entries. Forcing either into the analyst template answers the question
+  badly, and no amount of tuning on one template fixes that — the *structure* is the problem,
+  not the prose. A small closed set keeps output predictable and lets each format be tuned and
+  tested on its own. Free-form format prompts were rejected because they make the output
+  impossible to reason about and hand unbounded text a privileged position in the prompt.
+- **How it holds together:** `prompts.js` stays string-only — the per-format structures are
+  plain exports, and the writer/revisor system prompts became functions that interpolate one.
+  The shared detail/citation/diagram rules are factored into `SHARED_RULES` so every format
+  inherits them; a format cannot silently drop the citation rules. Only `{id,label,blurb}`
+  crosses to the browser — the prompt text never leaves the server. An unknown or absent id
+  resolves to the default rather than reaching a prompt as `undefined`, and an explicitly
+  invalid id in the API body is rejected with `400`.
+- **Cost:** six structures to keep in sync with what the critic expects, and the critic's
+  `structure` check remains format-agnostic — it can tell that a required section is missing,
+  but it does not know which sections the *chosen* format requires. Noted in
+  [§20](verification.md#20-known-limitations-and-honest-gaps).
+
+---

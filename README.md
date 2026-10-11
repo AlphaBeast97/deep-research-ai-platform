@@ -11,9 +11,11 @@ against its own sources, **revises** it, and runs a **citation audit** before
 - **R**eact (Vite) frontend with a live agent trace, behind **Clerk** auth
 - **N**ode.js 18+
 
-> 📐 **Architecture & decision record:** [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) —
-> every design decision with the alternatives that were rejected, 25 ADRs,
-> 16 diagrams, and measured performance. Read it before changing anything structural.
+> 📐 **Architecture & decision record** — starts at [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+> (what the system is, its goals, its stack, and the file map), then splits by module:
+> [agent orchestration & prompts](docs/agents.md) · [backend](docs/backend.md) ·
+> [frontend](docs/frontend.md) · [measured verification & limitations](docs/verification.md) ·
+> [the 25 ADRs](docs/decisions.md). Read it before changing anything structural.
 
 ---
 
