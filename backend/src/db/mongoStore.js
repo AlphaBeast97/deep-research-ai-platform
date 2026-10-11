@@ -51,6 +51,10 @@ const reportSchema = new mongoose.Schema(
         agent: String,
         label: String,
         detail: String,
+        // 'start' | 'done'. The trace uses `start` to mark the step still in
+        // progress, so a schema that dropped it made a reopened report render
+        // every step as finished.
+        status: String,
         at: String,
       },
     ],

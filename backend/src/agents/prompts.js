@@ -391,10 +391,10 @@ export const criticUser = (query, research, sources, draft, { type, expand = [] 
     'Required structure for this deliverable:',
     type.spec,
     '',
-    'Audit STRUCTURE against that specification: a missing or renamed required\n' +
-      'section, a required table or diagram that is absent, or content that belongs\n' +
-      'to a different report format is an issue. Judge the report as the\n' +
-      'deliverable the user asked for, not as a generic essay.',
+    `Audit STRUCTURE against that specification: a missing or renamed required
+section, a required table or diagram that is absent, or content that belongs to
+a different report format is an issue. Judge the report as the deliverable the
+user asked for, not as a generic essay.`,
     '',
     'Gathered findings the draft was built from:',
     findingsBlock(research),
