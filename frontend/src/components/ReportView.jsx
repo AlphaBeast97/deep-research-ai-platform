@@ -46,8 +46,13 @@ export default function ReportView({
 
   const onExportMarkdown = () => downloadMarkdown({ title, report })
 
+  // `report` goes to both exporters as well as `sources`: the Sources appendix
+  // they write lists only the sources the report cites, and the report text is
+  // what decides that (see `citedSources`). The in-app panel still lists every
+  // source the run found, dimming the unused ones — there it answers "what was
+  // searched", which is a different question.
   const onExportPdf = () =>
-    printReport({ title, html: containerRef.current?.innerHTML ?? '', sources })
+    printReport({ title, html: containerRef.current?.innerHTML ?? '', report, sources })
 
   const onExportDocx = async () => {
     if (exporting) return

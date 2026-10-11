@@ -338,9 +338,16 @@ Plus two cross-cutting rule blocks, shared by every format:
   *where a process, comparison, cause-and-effect chain, timeline, or hierarchy is easier to
   grasp visually than in prose*. The constraints are all about **renderability**, because a
   diagram is only useful if it draws: prefer `flowchart`/`timeline`/`sequenceDiagram`, keep
-  node labels short, and **quote any label containing `()`, `:`, `;` or `,`** — unquoted
-  punctuation is the single most common cause of a Mermaid parse error. The measured result
-  (valid diagrams in a 1,491-word report) is in
+  node labels short, and put **no prose inside the fence** — only diagram statements.
+  Two rules were written *after* being ignored in a real report, and they are the two that
+  actually change the outcome: arrows are **ASCII only** (`-->`; `->`, `⟶`, `→` and the dash
+  arrows are all parse errors), and a label containing **parentheses** must be in double
+  quotes, because Mermaid reads `()` as syntax rather than text. The earlier version of this
+  block asked for quotes around `:`, `;` and `,` too — the parser was measured to accept all
+  three unquoted, and widening a rule that the model follows only unreliably dilutes the part
+  that matters. The prompt is the *first* defence; `lib/mermaid.js` repairs the two faults
+  deterministically when the model ignores it anyway ([§13.6](frontend.md#136-mermaid-diagrams-in-the-report)).
+  The measured result (valid diagrams in a 1,491-word report) is in
   [§15.4](verification.md#154-what-could-not-be-verified).
 - **Why "where it helps" rather than "include a diagram"**: an unconditional instruction
   produces a diagram on every report, including ones where it is filler. Tying it to the

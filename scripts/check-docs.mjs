@@ -61,7 +61,15 @@ function walkRepo(dir, out = []) {
 // ── The areas the file map claims to cover ────────────────────────────────
 // Walked directories plus the single files the map names explicitly. Kept in
 // one place because both the path check and the map check are scoped by it.
-const MAP_DIRS = ['backend/src', 'backend/test', 'frontend/src', 'frontend/public', 'docs', 'scripts']
+const MAP_DIRS = [
+  'backend/src',
+  'backend/test',
+  'frontend/src',
+  'frontend/public',
+  'frontend/test',
+  'docs',
+  'scripts',
+]
 const MAP_FILES = [
   'backend/.env.example',
   'backend/package.json',

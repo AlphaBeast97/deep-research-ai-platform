@@ -103,6 +103,7 @@ Each entry: the decision, what was rejected, why, and what it costs.
 - **Rejected:** letting the model produce its own bibliography.
 - **Why:** the UI renders a canonical, always-correct source list from the actual retrieved data. A model-authored bibliography would duplicate it, could drift from the real sources, and would waste output tokens.
 - **Cost:** the report is only self-contained inside this app; a raw copy-paste loses the reference list. Acceptable — the `.md` export is a *report*, and the sources panel is the source of truth.
+- **Since:** the exports (PDF, `.docx`) append a Sources appendix so the inline markers resolve in the saved file, and it lists **only the sources the report cites** — `citedSources()` in `lib/citations.js`, using the same citation pattern that renders the chips. A source the report never references is evidence the *run* gathered, which belongs in the panel, not in a document someone keeps. Numbers are never renumbered, so the appendix keeps the numbers the report's markers use ([§13.5](frontend.md#135-export)).
 
 ### ADR-14: `react-markdown` instead of `innerHTML`
 
@@ -142,6 +143,7 @@ Each entry: the decision, what was rejected, why, and what it costs.
 - **Rejected:** `rehype-mermaid` (needs a headless browser at build time), server-side pre-rendering to SVG (adds latency and a charting dependency to the write path), and skipping diagrams entirely.
 - **Why:** it leaves the ~42 s critical path unchanged, keeps the backend free of a charting library, and the fallback turns a bad diagram into a cosmetic problem instead of a blank report.
 - **Cost:** a few kB of wiring plus Mermaid's own lazily-fetched chunks. See [§13.6](frontend.md#136-mermaid-diagrams-in-the-report).
+- **Since:** the fallback is no longer the *first* line of defence. A real report shipped a flowchart the parser rejected — a Unicode arrow in edge position (a lexical error) and an unquoted `(2020-2022)` in a label (a parse error), two independent faults — so `lib/mermaid.js` now repairs the shapes the parser was measured to reject before rendering, and again in the `.md` export. The rules are narrow (only what the parser rejected; `%`, `:`, `,` and `&` are left unquoted, because Mermaid accepts them) and verified against the real parser in `frontend/test/mermaid.test.js`. The fallback stays for anything the repair cannot rescue, and it shows the *repaired* source so the two never disagree.
 
 ### ADR-19: Tailwind v4 for styling
 

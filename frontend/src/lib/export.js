@@ -1,4 +1,6 @@
 import { hostOf, slugify } from './format.js'
+import { citedSources } from './citations.js'
+import { repairMermaidBlocks } from './mermaid.js'
 
 const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }
 
@@ -6,9 +8,15 @@ const ESCAPES = { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&
 // print window shares this origin, so everything interpolated into it is escaped.
 const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ESCAPES[ch])
 
-/** Trigger a browser download of the report as a Markdown file. */
+/**
+ * Trigger a browser download of the report as a Markdown file.
+ *
+ * Mermaid blocks are repaired on the way out, so a diagram that only renders
+ * because the UI fixed it up does not leave the app broken: the `.md` is meant
+ * to be opened elsewhere (GitHub renders Mermaid natively).
+ */
 export function downloadMarkdown({ title, report }) {
-  const body = `# ${title}\n\n${report.replace(/^#\s.*\n/, '')}`
+  const body = `# ${title}\n\n${repairMermaidBlocks(report).replace(/^#\s.*\n/, '')}`
   const blob = new Blob([body], { type: 'text/markdown;charset=utf-8' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
@@ -72,9 +80,11 @@ const PRINT_STYLES = `
  * print window carries its own stylesheet instead of relying on the app's CSS.
  *
  * The sources list is appended so citation anchors resolve inside the PDF —
- * without it, a saved PDF has `[n]` markers that point at nothing.
+ * without it, a saved PDF has `[n]` markers that point at nothing. It is
+ * filtered here rather than by the caller, so no call site can forget: the
+ * appendix lists what the report cites and nothing else.
  */
-export function printReport({ title, html, sources = [] }) {
+export function printReport({ title, html, report = '', sources = [] }) {
   const win = window.open('', '_blank', 'width=900,height=1000')
   if (!win) return
   const safeTitle = escapeHtml(title)
@@ -86,7 +96,7 @@ export function printReport({ title, html, sources = [] }) {
     <style>${PRINT_STYLES}</style></head><body>
     <h1>${safeTitle}</h1>
     ${body}
-    ${sourcesSection(sources)}
+    ${sourcesSection(citedSources(sources, report))}
     </body></html>`)
   win.document.close()
   win.focus()

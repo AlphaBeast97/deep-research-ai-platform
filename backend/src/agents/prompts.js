@@ -274,8 +274,14 @@ Diagram rules (Mermaid):
   paragraph that introduces it.
 - The diagram must be valid Mermaid that renders without errors. Prefer
   "flowchart TD", "timeline", or "sequenceDiagram".
-- Keep it simple and legible: short node labels, no HTML, and wrap any label
-  containing punctuation such as (), :, ;, or , in double quotes.
+- Arrows are ASCII. Write --> between nodes. Never use -> , —> , –> , ⟶ or any
+  other Unicode arrow: Mermaid rejects them outright with a syntax error and the
+  whole diagram fails to render.
+- Parentheses are syntax, not text, in Mermaid. A label containing ( or ) must
+  be in double quotes: B["Valuation drops (2020-2022)"]. The same goes for a
+  subgraph title. Other punctuation (%, :, ,, &) is accepted unquoted.
+- Keep it simple and legible: short node labels, no HTML, and never put a
+  sentence of prose inside the fence — only diagram statements.
 - Never nest one diagram inside another fence and never invent a Mermaid diagram
   type that does not exist.`
 

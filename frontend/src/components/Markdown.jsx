@@ -1,6 +1,7 @@
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
 import Mermaid from './Mermaid.jsx'
+import { citationRegExp, MAX_MARKERS_PER_GROUP } from '../lib/citations.js'
 
 const MERMAID = /language-mermaid/
 
@@ -8,13 +9,17 @@ const MERMAID = /language-mermaid/
  * Rewrite inline citation tokens like [2] or [1, 4] into markdown links that
  * point at the matching source card (#source-2). This lets the report render
  * citations as interactive chips without a custom remark plugin.
+ *
+ * The pattern comes from `lib/citations.js` because the exporters filter the
+ * sources appendix with the same one — chips and exported list must agree on
+ * what counts as a citation.
  */
 function linkifyCitations(text) {
   if (!text) return ''
-  return text.replace(/\[(\d+(?:\s*,\s*\d+)*)\](?!\()/g, (match, group) => {
+  return text.replace(citationRegExp(), (match, group) => {
     const nums = group.split(',').map((n) => n.trim())
     // Leave fenced-code-ish or obviously non-citation brackets alone.
-    if (nums.length > 6) return match
+    if (nums.length > MAX_MARKERS_PER_GROUP) return match
     return nums.map((n) => `[${n}](#source-${n})`).join('')
   })
 }

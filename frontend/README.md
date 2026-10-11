@@ -11,6 +11,7 @@ and clickable citation chips), and manages saved-report history.
 npm install
 npm run dev      # http://localhost:5173
 npm run lint
+npm test         # node:test — diagram repair (real Mermaid parser), citations, exports
 npm run build
 ```
 
@@ -26,6 +27,8 @@ src/
 ├── index.css               # Tailwind v4 import, theme tokens, report styles
 ├── hooks/useResearch.js    # one-run state machine (idle → running → done/error)
 ├── lib/
+│   ├── citations.js        # [n] parsing; exports list cited sources only
+│   ├── mermaid.js          # repairs model-written diagrams before Mermaid parses them
 │   ├── cn.js               # class-name join helper
 │   ├── export.js           # .md download + print-to-PDF
 │   └── format.js           # hostOf / timeAgo / slugify / wordCount
@@ -61,3 +64,11 @@ out of the main bundle until a diagram actually appears), renders SVG with
 `securityLevel: 'strict'`, and falls back to showing the source if a diagram is
 malformed. Diagram syntax is requested from the writer agent — see
 `backend/src/agents/prompts.js`.
+
+Before parsing, the source goes through `lib/mermaid.js`. Models reliably write
+a couple of shapes Mermaid rejects — Unicode or single-dash arrows in edge
+position, and parentheses left unquoted inside a label — and the repair turns
+them into the ASCII equivalents rather than costing the report its diagram. Only
+shapes the parser was measured to reject are touched, and only for the grammar
+types that were tested; `test/mermaid.test.js` checks every rule against the real
+Mermaid parser, including that diagrams which already parse are untouched.

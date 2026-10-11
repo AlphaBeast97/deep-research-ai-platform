@@ -118,6 +118,8 @@ diagram and styling work was added:
 | **DOCX is a real Word file** | Built a document and read `word/document.xml` back out of the produced OOXML zip: title, headings, table header/body cells, list items, blockquote, code, citations (`[2, 3]`) and the sources appendix all present | ✅ 21/21 |
 | **The chosen format changes the deliverable** | Live run with `reportType=brief`: 561 words (vs ~1,491 for the analyst format), H2 sections exactly `Bottom line · Key findings · What to watch · Limitations`, no analyst methodology section, and `reportType` present on both the `meta` event and the stored record | ✅ |
 | Markdown → Mermaid wiring | SSR smoke render of `Markdown.jsx` asserting the fence becomes `Mermaid`, the source does **not** leak into markup, citations become chips, code fences survive, GFM tables render | ✅ 8/8 |
+| **Diagrams the model gets wrong are repaired** | `frontend/test/mermaid.test.js`, 18 broken shapes (Unicode, dash and single-dash arrows; unquoted parentheses in rectangle, decision, circle and stadium labels; brackets and quotes in labels; subgraph titles; edge labels; a prose sentence inside the fence; a stray `end`; a nested fence) each handed to the **real Mermaid 12 parser** before and after repair. A real report's flowchart fails as written, *still* fails when only one of its two faults is fixed, and parses after the repair; the 12 diagrams that already parse come back byte-identical; repair is idempotent | ✅ 7/7 |
+| **The PDF and `.docx` list cited sources only** | `frontend/test/citations.test.js` (what counts as a citation, what the appendix keeps) and `frontend/test/export.test.js`, which builds the *real* artifacts — the HTML the print window receives, and the OOXML package read back out of the Blob through the zip central directory. Both artifacts carry the cited sources, neither contains an uncited one, a report with no citations gets no appendix, and hostile source titles come out escaped | ✅ 12/12 |
 | Tailwind tokens actually emitted | Grepped the built CSS for `rounded-panel`, `rounded-control`, `shadow-panel`, `bg-inset`, `text-muted`, `text-planner`, `bg-researcher`, `text-critic`, and the unlayered `.source-card.flash` rule | ✅ |
 | Lint + build | `eslint` clean (exit 0), `vite build` successful (exit 0), with `pipefail` + explicit status capture | ✅ |
 | Backend syntax | `node --check` on all 14 changed/created backend modules | ✅ |
@@ -127,7 +129,7 @@ And what still cannot be verified here:
 | Not verified | Why | Risk |
 |---|---|---|
 | UI rendering, layout, HMR | **No browser available in this environment** | Visual regressions undetected by automated checks |
-| Mermaid **pixels** | Needs a browser | Parser-valid is not the same as legible; a diagram can parse and still lay out awkwardly |
+| Mermaid **pixels** | Needs a browser | Parser-valid is not the same as legible; a diagram can parse and still lay out awkwardly. The repair in `lib/mermaid.js` is therefore verified at the parser level — what could not be checked is what it *looks* like |
 | Citation-chip scroll & flash | Needs a browser | Interaction could be subtly wrong — the CSS layer-precedence bug found by reading the built CSS is exactly this class of risk |
 | Tailwind's visual result | Needs a browser | Layout/spacing regressions are invisible to `lint` and `build` |
 | **The integrity strip, phase badge, self-critique `<details>` panel** | Needs a browser | The data is verified to be present on the wire (`critique` + `audit` frames captured); only its *presentation* is unproven |
@@ -135,9 +137,10 @@ And what still cannot be verified here:
 | MongoDB driver at runtime | No `MONGODB_URI` provided ("still no db") | `mongoStore.js` is written and type-consistent but never executed |
 | Multiple providers simultaneously | Only Gemini was available | Other base URLs unproven in practice |
 
-The frontend was checked by `eslint`, `vite build`, an SSR render of the Markdown path, and a
-parser pass over the generated diagrams — **but none of that is the same as a person looking
-at the page, and this record does not claim otherwise.**
+The frontend was checked by `eslint`, `vite build`, `node --test` (`npm test` — the diagram
+repair against the real Mermaid parser, and the citation parsing the exports depend on), an SSR
+render of the Markdown path, and a parser pass over the generated diagrams — **but none of that
+is the same as a person looking at the page, and this record does not claim otherwise.**
 
 ---
 

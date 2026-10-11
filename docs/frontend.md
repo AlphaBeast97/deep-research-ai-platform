@@ -117,6 +117,9 @@ The negative lookahead `(?!\()` is what prevents mangling an existing Markdown l
 a wall of buttons. The custom `a` renderer only hijacks hrefs matching `^#source-(\d+)$` —
 every other link is rendered normally with `target="_blank" rel="noreferrer"`.
 
+The pattern and the guard live in `lib/citations.js` rather than in the renderer, because the
+exporters need the same answer to "what does this report cite?" — see [§13.5](#135-export).
+
 Then `scrollToSource` does `scrollIntoView({block:'center'})` and adds a `flash` class for
 1200 ms so the user can see *which* card was targeted. The whole interaction is defensive:
 if the element isn't found, it silently does nothing rather than throwing.
@@ -142,6 +145,15 @@ document and the DOCX append a **Sources** appendix carrying the same `#source-n
 titles and URLs are untrusted web text and are HTML-escaped before being interpolated into the
 print window, which shares this origin.
 
+**The appendix lists cited sources only.** A run discovers more sources than it ends up
+citing, and the in-app panel keeps showing all of them (dimmed) because there they answer
+"what was searched". In a document someone saves, an entry no `[n]` points at is noise, so
+exports are built from `citedSources(sources, report)` — the report's own citation markers
+decide the list, using the same pattern that renders the chips ([ADR-13](decisions.md#adr-13-citations-inline-no-reference-list)).
+Numbers are not renumbered: the report says `[7]`, so the appendix keeps calling that source 7,
+gaps and all. A `.md` download carries no appendix (the report body is the report), and the
+diagram blocks in it are repaired on the way out (see below).
+
 The `docx` builder is deliberately a small hand-written converter over the subset the writer
 actually emits (headings, paragraphs, lists, GFM tables, blockquotes, fenced code, Mermaid)
 rather than a general Markdown engine — a general one would pull far more code than this
@@ -159,11 +171,12 @@ flowchart TD
     A["react-markdown parses a fenced block<br/>code node gets class 'language-mermaid'"]
     A --> B["pre renderer unwraps the block<br/>(so no &lt;pre&gt; wraps the figure)"]
     B --> C["Mermaid.jsx receives the raw source"]
-    C --> D{"debounce 150 ms"}
-    D --> E["lazy import('mermaid')<br/>separate code-split chunk"]
-    E --> F{"mermaid.render(id, source)"}
-    F -->|resolves| G["inject SVG<br/>securityLevel: strict"]
-    F -->|throws| H["show the raw source<br/>+ 'could not render' note"]
+    C --> D{"repairMermaid(source)<br/>ASCII arrows, quoted labels"}
+    D --> E{"debounce 150 ms"}
+    E --> F["lazy import('mermaid')<br/>separate code-split chunk"]
+    F --> G{"mermaid.render(id, source)"}
+    G -->|resolves| H["inject SVG<br/>securityLevel: strict"]
+    G -->|throws| I["show the repaired source<br/>+ 'could not render' note"]
 ```
 
 Four decisions, each with a reason:
@@ -175,10 +188,38 @@ Four decisions, each with a reason:
 | **Debounce 150 ms** | Render on every token | An unclosed fence is still a valid code block to CommonMark, so without debouncing we'd kick off a `mermaid.render` for nearly every streamed token, each one failing until the fence closes. The debounce collapses that to one attempt per quiet period. |
 | **`securityLevel: 'strict'`** | Default/`loose` | Mermaid's strict mode sanitises labels and disables click handlers and HTML labels. The diagram text is indirectly model-authored from scraped pages, so it sits on the same untrusted boundary as [ADR-14](decisions.md#adr-14-react-markdown-instead-of-innerhtml). |
 
-**The fallback is the point.** A diagram that fails to parse does not blank the report or
-throw a React error — it renders the raw source with a small note, so the report degrades to
-"here's the definition" rather than breaking. Every diagram in the live verification report was
-parsed with the real Mermaid v12 parser ([§15.4](verification.md#154-what-could-not-be-verified)).
+**The model writes diagrams Mermaid rejects, so the source is repaired before it is parsed.**
+Two independent faults were captured from a real report: a Unicode arrow (`⟶`) used as an edge
+operator — a *lexical* error — and `(2020-2022)` left unquoted inside a node label, where
+parentheses are syntax rather than text, a *parse* error. Either one alone stops the diagram
+rendering. `lib/mermaid.js` fixes the shapes the parser was measured to reject, and each rule
+carries the error it exists to fix:
+
+| Fault | Repair |
+|---|---|
+| Unicode arrows (`⟶ ⟹ ➔ ➜ ↦ → ⇒`), em/en-dash arrows (`—>`, `–>`) | rewritten to the diagram family's ASCII arrow (`-->`, `->>` for sequence diagrams) |
+| A single-dash `->` in a flowchart | rewritten to `-->` — `-->`, `-->>` and `-.->` are left alone |
+| `(`/`)`, `"`, `[`/`]` inside an unquoted label, in any node shape (`[ ]`, `( )`, `{ }`, `(( ))`, `([ ])`) | the label is quoted; an inner `"` becomes `#quot;` and a trailing backslash is doubled |
+| The same in an edge label (`-->|Costs (2020)|`) or a `subgraph` title | quoted the same way |
+| A sentence of prose inside the fence, a nested fence, an `end` with no open `subgraph` | dropped |
+
+The repair is deliberately narrow: `%`, `>`, `,`, `:`, `;` and `&` are all accepted unquoted
+by Mermaid 12, and quoting "just in case" would edit diagrams that already render — a quoted
+label ending in a backslash, for instance, is *worse* than the unquoted one. Only the
+flowchart grammar has been verified this way, so sequence diagrams get arrow repair only and
+timeline/class/state diagrams are passed through untouched rather than guessed at. It is
+idempotent, so repairing at render time and again on export changes nothing the second time.
+
+`frontend/test/mermaid.test.js` asserts every one of these cases against the **real Mermaid 12
+parser**, plus that the repaired report diagram parses, that both of its faults are real
+(fixing only one still fails), that diagrams which already parse come back byte-identical, and
+that repair is idempotent. `npm test` in `frontend/` runs it.
+
+**The fallback is still the point, but it is now the rare path.** A diagram the repair cannot
+rescue does not blank the report or throw a React error — the repaired source is shown with a
+small note, so the report degrades to "here's the definition" rather than breaking. Every
+diagram in the live verification report was parsed with the real Mermaid v12 parser
+([§15.4](verification.md#154-what-could-not-be-verified)).
 
 **Bundle cost, measured:** `mermaid` is reached only via a dynamic `import()`, so it lands in
 its own chunks (plus one per diagram type). Adding it grew the main app bundle by only

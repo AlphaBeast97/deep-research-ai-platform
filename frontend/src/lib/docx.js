@@ -1,4 +1,5 @@
 import { hostOf, slugify } from './format.js'
+import { citedSources } from './citations.js'
 
 /**
  * Markdown → .docx.
@@ -334,6 +335,11 @@ export function blocksToChildren(docx, blocks, diagramImages = []) {
   return children
 }
 
+/**
+ * The Sources appendix. It receives the *cited* subset, decided here in
+ * `buildDocxBlob` rather than by the caller — a Word document should not end
+ * with entries that no `[n]` in it refers to.
+ */
 function sourcesChildren(docx, sources) {
   if (!sources.length) return []
   const { Paragraph, TextRun, ExternalHyperlink, HeadingLevel } = docx
@@ -377,7 +383,7 @@ export async function buildDocxBlob({ title, report, sources = [], diagramImages
       spacing: { after: 240 },
     }),
     ...blocksToChildren(docx, parseBlocks(body), diagramImages),
-    ...sourcesChildren(docx, sources),
+    ...sourcesChildren(docx, citedSources(sources, report)),
   ]
 
   const doc = new Document({

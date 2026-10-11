@@ -1,4 +1,5 @@
-import { useEffect, useId, useState } from 'react'
+import { useEffect, useId, useMemo, useState } from 'react'
+import { repairMermaid } from '../lib/mermaid.js'
 
 /**
  * Lazily loads and configures Mermaid exactly once, then reuses the instance
@@ -33,6 +34,12 @@ const EMPTY = { chart: null, svg: '', failed: false }
  * definition when the diagram is malformed, so a bad block never blanks the
  * report. Renders are debounced so a report streaming token-by-token does not
  * kick off a parse for every keystroke.
+ *
+ * The source goes through `repairMermaid` first. The writer agent reliably
+ * produces a couple of shapes Mermaid's grammar rejects — Unicode arrows and
+ * unquoted parentheses in labels — and a repair is better than a fallback: it
+ * keeps the diagram the report's prose refers to. What is repaired is what is
+ * shown here and what the fallback displays, so the two can never disagree.
  */
 export default function Mermaid({ chart }) {
   const reactId = useId()
@@ -40,7 +47,8 @@ export default function Mermaid({ chart }) {
 
   // Mermaid ids must be plain alphanumerics — useId() contains colons.
   const renderId = `mermaid-${reactId.replace(/[^a-zA-Z0-9]/g, '')}`
-  const source = (chart || '').trim()
+  const raw = (chart || '').trim()
+  const source = useMemo(() => repairMermaid(raw).trim(), [raw])
 
   useEffect(() => {
     if (!source) return
@@ -72,7 +80,7 @@ export default function Mermaid({ chart }) {
     return (
       <figure className="mermaid-figure">
         <pre className="overflow-x-auto text-xs text-danger">
-          <code>{chart}</code>
+          <code>{source}</code>
         </pre>
         <figcaption className="mt-2 text-center text-[11px] text-danger">
           Diagram could not be rendered — showing its source.

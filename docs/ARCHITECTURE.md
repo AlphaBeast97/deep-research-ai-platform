@@ -302,7 +302,7 @@ backend/
 frontend/
   index.html                       entry: favicon, title, description, mounts /src/main.jsx
   vite.config.js                   react + @tailwindcss/vite plugins
-  package.json                     react 19 / vite 8 / clerk / mermaid / docx; eslint 10
+  package.json                     react 19 / vite 8 / clerk / mermaid / docx; eslint 10 + jsdom (tests)
   eslint.config.js                 flat config (react-hooks + react-refresh)
   public/favicon.svg               the app icon (referenced by index.html)
   src/
@@ -313,6 +313,8 @@ frontend/
     App.jsx                        signed-out → Landing; signed-in shell, tabs, format state
     lib/
       cn.js                        class-name join helper
+      citations.js                 shared [n] parsing; exports list the cited sources only
+      mermaid.js                   repairs model-written diagrams before Mermaid parses them
       export.js                    .md download + print-to-PDF (with sources appendix)
       docx.js                      Markdown → .docx (headings/tables/images/sources)
       format.js                    hostOf / timeAgo / slugify / wordCount
@@ -330,6 +332,10 @@ frontend/
       HistoryPanel.jsx             saved reports, open/delete
       Markdown.jsx                 GFM rendering + citation chips + mermaid hook
       Mermaid.jsx                  lazy SVG renderer with source fallback
+  test/                            node:test suite for the pure frontend logic
+    mermaid.test.js                every repair rule, asserted against the real Mermaid 12 parser
+    citations.test.js              what counts as a citation, and which sources an export lists
+    export.test.js                 the real print HTML and .docx bytes, checked for cited sources only
 docs/                              the architecture record, split by module
   ARCHITECTURE.md                  index — what/why/stack, glossary, this map, quick reference
   agents.md                        §7–§8   the pipeline and every prompt

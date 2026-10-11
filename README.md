@@ -15,7 +15,8 @@ against its own sources, **revises** it, and runs a **citation audit** before
 > (what the system is, its goals, its stack, and the file map), then splits by module:
 > [agent orchestration & prompts](docs/agents.md) · [backend](docs/backend.md) ·
 > [frontend](docs/frontend.md) · [measured verification & limitations](docs/verification.md) ·
-> [the 25 ADRs](docs/decisions.md). Read it before changing anything structural.
+> [the 25 ADRs](docs/decisions.md) · [deployment proposal](docs/deployment.md).
+> Read it before changing anything structural.
 
 ---
 
@@ -95,16 +96,17 @@ reports coverage for the UI.
 │           ├── index.js         # storage facade (owner-scoped)
 │           └── mongoStore.js    # MongoDB Atlas
 ├── docs/                      # the architecture record — start at docs/ARCHITECTURE.md
-│   └── …                      # ARCHITECTURE · agents · backend · frontend · verification · decisions
+│   └── …                      # ARCHITECTURE · agents · backend · frontend · verification · decisions · deployment
 ├── scripts/check-docs.mjs     # fact-checks these docs against the code
 └── frontend/
+    ├── test/                    # node:test — diagram repair + citation parsing (npm test)
     └── src/
         ├── main.jsx             # ClerkProvider wraps the app
         ├── App.jsx              # sign-in gate · trace · report · library
         ├── index.css            # Tailwind v4 + theme tokens + report styles
         ├── api.js               # SSE parser + REST calls (Bearer token)
         ├── hooks/useResearch.js # run lifecycle state machine (13 events)
-        ├── lib/                 # format · export · docx · class-name helpers
+        ├── lib/                 # format · citations · mermaid repair · export · docx · cn
         └── components/
             ├── ui/              # Button · Panel · Badge primitives
             ├── Landing.jsx      # signed-out marketing page
@@ -371,9 +373,12 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
 - **Honesty in the UI** — an integrity strip and a self-critique panel surface the
   audit numbers and the critic's verdict instead of hiding them.
 - **Mermaid diagrams in the report** — the writer embeds ```` ```mermaid ```` flowcharts/timelines where they
-  clarify a process, and the UI renders them as SVG (with a graceful fallback to the raw source).
+  clarify a process, and the UI renders them as SVG. Diagrams the model gets syntactically wrong
+  (Unicode or single-dash arrows, unquoted parentheses in labels) are repaired before they are
+  parsed, so the diagram the prose refers to is the diagram you see; anything the repair cannot
+  rescue still falls back to showing its source rather than breaking the report.
 - **Citations & sources panel** — inline `[n]` markers become clickable chips that scroll to the matching source card.
-- **Export** — copy as Markdown, download `.md` (diagrams preserved as code), download **Word `.docx`** (real headings, tables, and diagrams rasterised to images), or print/save as **PDF**. The `.docx` and PDF both carry a **Sources appendix**, so `[n]` citations resolve inside the exported file.
+- **Export** — copy as Markdown, download `.md` (repairable diagrams preserved as code), download **Word `.docx`** (real headings, tables, and diagrams rasterised to images), or print/save as **PDF**. The `.docx` and PDF both carry a **Sources appendix** listing only the sources the report actually cites, so every entry resolves to a `[n]` in the text and vice versa.
 - **Tailwind CSS v4 UI** — dark-first design tokens, light theme via `prefers-color-scheme`, no hand-written component CSS.
 
 ## Tech stack
@@ -391,6 +396,9 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
 ## Notes & limitations
 
 - Reports are private per user, but there are no roles, sharing or teams yet.
+- Diagrams are repaired, not guaranteed. The repair covers the fault classes measured against
+  Mermaid 12 (see `frontend/test/mermaid.test.js` and [§13.6](docs/frontend.md#136-mermaid-diagrams-in-the-report));
+  a diagram outside them still shows its source instead of rendering.
 - Tavily is the only search provider wired in; add another by extending `backend/src/services/search.js`.
 - Depth costs latency: a full live run (gap rounds + critique + revision) takes
   **~2–3 minutes**, versus ~40 s for the original single-pass pipeline. The
