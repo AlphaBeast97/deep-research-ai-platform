@@ -145,7 +145,7 @@ print window, which shares this origin.
 The `docx` builder is deliberately a small hand-written converter over the subset the writer
 actually emits (headings, paragraphs, lists, GFM tables, blockquotes, fenced code, Mermaid)
 rather than a general Markdown engine — a general one would pull far more code than this
-report format can produce. `docx` is imported lazily, so its ~467 kB lands in its own chunk
+report format can produce. `docx` is imported lazily, so its ~456 kB lands in its own chunk
 and is never fetched unless someone exports.
 
 ### 13.6 Mermaid diagrams in the report
@@ -171,7 +171,7 @@ Four decisions, each with a reason:
 | Decision | Alternative | Why this one |
 |---|---|---|
 | **Detect the fence in the `code`/`pre` renderers** | A `remark` plugin, or `rehype-mermaid` | Zero new parser plumbing; the class name is already there. `rehype-mermaid` would also pull in a headless browser at build time. |
-| **Render client-side in an effect** | Server-side render to SVG at write time and store the SVG | The write path is *already* 42 s; adding a rendering step and a large Mermaid install to the backend makes the critical path longer and couples the server to a charting library it otherwise doesn't need. |
+| **Render client-side in an effect** | Server-side render to SVG at write time and store the SVG | The write path is *already* well over a minute ([§19](verification.md#19-performance-where-the-time-goes)); adding a rendering step and a large Mermaid install to the backend makes the critical path longer and couples the server to a charting library it otherwise doesn't need. |
 | **Debounce 150 ms** | Render on every token | An unclosed fence is still a valid code block to CommonMark, so without debouncing we'd kick off a `mermaid.render` for nearly every streamed token, each one failing until the fence closes. The debounce collapses that to one attempt per quiet period. |
 | **`securityLevel: 'strict'`** | Default/`loose` | Mermaid's strict mode sanitises labels and disables click handlers and HTML labels. The diagram text is indirectly model-authored from scraped pages, so it sits on the same untrusted boundary as [ADR-14](decisions.md#adr-14-react-markdown-instead-of-innerhtml). |
 
@@ -181,8 +181,10 @@ throw a React error — it renders the raw source with a small note, so the repo
 parsed with the real Mermaid v12 parser ([§15.4](verification.md#154-what-could-not-be-verified)).
 
 **Bundle cost, measured:** `mermaid` is reached only via a dynamic `import()`, so it lands in
-its own chunks (plus one per diagram type). The main app bundle grew from 389.7 kB to
-399.7 kB (123.9 kB gzip); the diagram chunks are fetched only when a report contains one.
+its own chunks (plus one per diagram type). Adding it grew the main app bundle by only
+~10 kB (389.7 kB → 399.7 kB, 123.9 kB gzip at the time); the whole app bundle is ~548 kB
+(164 kB gzip) at the time of writing, and the diagram chunks are fetched only when a report
+contains one.
 
 ### 13.7 Styling: Tailwind v4
 

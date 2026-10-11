@@ -45,7 +45,7 @@ pie showData title Wall-clock time by phase (total ≈ 133 s)
 | Streaming works on Gemini | 205 `token` deltas across the draft and the revision |
 | JSON mode works on Gemini | planner, 9 researcher, follow-up, and critic calls all returned parseable JSON |
 | Real web search works | 48 deduped source URLs |
-| Persistence works | record written to `backend/data/reports.json`, newest-first |
+| Persistence works | record written to `backend/data/reports.json`, newest-first — the **then-current file store**; the same record shape now goes to MongoDB ([§12](backend.md#12-storage-the-mongodb-facade)) |
 | No silent failures | zero `"type":"error"` frames in the captured stream |
 
 **The cost of depth, measured:** 133 s wall-clock and 105,937 tokens (100,434 prompt /
@@ -143,8 +143,8 @@ at the page, and this record does not claim otherwise.**
 ## 19. Performance: where the time goes
 
 Measured on a real live run ("How do solid-state batteries compare to lithium-ion in 2026?",
-`RESEARCH_DEPTH=deep`, `MAX_SUBQUESTIONS=5`, Gemini 3.5 Flash Lite, all depth knobs at their
-defaults):
+`RESEARCH_DEPTH=deep`, `MAX_SUBQUESTIONS=5`, the rest of the depth knobs at their
+defaults, Gemini 3.5 Flash Lite):
 
 ```mermaid
 pie showData title Wall-clock time by phase (total ≈ 133.2 s)
@@ -208,7 +208,7 @@ That is [limitation #1](#20-known-limitations-and-honest-gaps).
 
 **The explicit trade accepted here:** the user was asked how to spend the budget and chose
 *"don't care about latency — prefer maximum depth and verification, even 3–5 minutes."* That
-is why the depth knobs default to values that produce a ~2–5 minute run rather than a ~40 s
+is why the depth knobs default to values that produce a ~2–3 minute run rather than a ~40 s
 one. The dial exists (`RESEARCH_MAX_ROUNDS=0`, `DEEP_FETCH=false`, `RESEARCH_CRITIQUE=false`
 returns roughly v1 behaviour) but it is deliberately turned up.
 
@@ -249,7 +249,7 @@ Ordered by how much they'd matter if this became more than a local tool.
 | 7 | **Session tokens are the only auth signal** | A leaked token is valid until it expires | Short token lifetime is Clerk's default; add audience/org claims if this API is ever shared |
 | 8 | **No reconnecting SSE** | A dropped connection ends the run | Persist partial progress and offer `GET /api/research/:id` resume |
 | 9 | **Search quality unseen** | A run with no results still "succeeds" | Surface `gaps` prominently in the UI; warn when `gaps` is non-empty |
-| 10 | **Tests cover the pure logic, not the pipeline** | `npm test` (39 tests) covers the citation audit and sanitiser, the source index, finding validation, the concurrency pool, critique normalisation and stall detection — but the network paths are only exercised by a live run | Stub `services/search.js` and `llm.js` behind a seam and drive `runResearch` against them |
+| 10 | **Tests cover the pure logic, not the pipeline** | `npm test` (41 tests in six files) covers the citation audit and sanitiser, the source index, finding validation, the concurrency pool, critique normalisation and stall detection — but the network paths are only exercised by a live run | Stub `services/search.js` and `llm.js` behind a seam and drive `runResearch` against them |
 | 11 | **Report diagrams are LLM-authored** | A malformed ```` ```mermaid ```` block shows the "could not render" fallback instead of a diagram | The fallback and the prompt constraints already contain it; a server-side `mermaid.parse` guard could reject bad blocks before persisting |
 | 12 | **The critic is the same model family as the writer** | A shared blind spot can survive an adversarial review | The critique is one prompt in one file; pointing it at a *different* provider is a small, high-value change |
 | 13 | **Deep fetch reads only the top-N ranked URLs** | A lower-ranked source with the best primary data is never read in full | Make `DEEP_FETCH_SOURCES` adaptive (e.g. read more when coverage is low) or rank by something other than Tavily's score |

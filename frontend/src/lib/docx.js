@@ -3,7 +3,7 @@ import { hostOf, slugify } from './format.js'
 /**
  * Markdown → .docx.
  *
- * The `docx` library is imported lazily (like Mermaid) so its ~300 kB stays out
+ * The `docx` library is imported lazily (like Mermaid) so its ~456 kB stays out
  * of the main bundle until someone actually exports.
  *
  * Scope is deliberately the subset our writer emits: headings, paragraphs,

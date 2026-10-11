@@ -94,6 +94,9 @@ reports coverage for the UI.
 │       └── db/
 │           ├── index.js         # storage facade (owner-scoped)
 │           └── mongoStore.js    # MongoDB Atlas
+├── docs/                      # the architecture record — start at docs/ARCHITECTURE.md
+│   └── …                      # ARCHITECTURE · agents · backend · frontend · verification · decisions
+├── scripts/check-docs.mjs     # fact-checks these docs against the code
 └── frontend/
     └── src/
         ├── main.jsx             # ClerkProvider wraps the app
@@ -377,7 +380,7 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
 
 | Layer | Choice |
 | --- | --- |
-| Backend | Node 18+, Express 4, ES modules |
+| Backend | Node 20.19+ (Vite 8's floor), Express 4, ES modules |
 | Auth | Clerk (`@clerk/express`, `@clerk/react`) |
 | Agents | Any OpenAI-compatible endpoint via the OpenAI SDK (`LLM_BASE_URL`) |
 | Search | Tavily (`@tavily/core`) — search + full-page extraction |
@@ -390,7 +393,7 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
 - Reports are private per user, but there are no roles, sharing or teams yet.
 - Tavily is the only search provider wired in; add another by extending `backend/src/services/search.js`.
 - Depth costs latency: a full live run (gap rounds + critique + revision) takes
-  **~1.5–3 minutes**, versus ~40 s for the original single-pass pipeline. The
+  **~2–3 minutes**, versus ~40 s for the original single-pass pipeline. The
   dials in the config table above trade it back — `RESEARCH_CONCURRENCY` is the
   biggest lever, since the research phase is ~85 % of a run and is almost all
   network wait.

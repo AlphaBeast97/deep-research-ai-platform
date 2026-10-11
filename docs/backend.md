@@ -281,8 +281,10 @@ res.on('close', () => { closed = true; clearInterval(heartbeat) })
 
 Two problems are solved by four lines:
 
-1. **Idle connections get killed.** A measured run takes **42 seconds**, with gaps of many
-   seconds between frames while a model thinks. Reverse proxies, load balancers, and some
+1. **Idle connections get killed.** A measured run takes **50 seconds**, and the depth
+   defaults can push it past two minutes
+   ([§19](verification.md#19-performance-where-the-time-goes)), with gaps of many seconds
+   between frames while a model thinks. Reverse proxies, load balancers, and some
    corporate networks drop connections idle for ~30–60 s. A `: ping` comment frame (legal
    SSE, ignored by our parser) keeps the socket warm.
 2. **Writing to a dead socket.** If the user closes the tab, `res.write` on a closed socket

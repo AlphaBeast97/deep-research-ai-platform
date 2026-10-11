@@ -28,6 +28,11 @@ it just lives in another file now, and the links below carry you there.
 | [verification.md](verification.md) | Verification, performance and limitations | §15, §19, §20 |
 | [decisions.md](decisions.md) | Decision log (ADRs) | §16 |
 
+Every mechanical claim the record makes — cross-file links and anchors, §-numbers,
+ADR numbers, env-var names and their documented defaults, API routes, report types,
+file paths, and the completeness of the file map below — is re-checked against the
+code by `node scripts/check-docs.mjs`, which exits non-zero when any one has drifted.
+
 ### Full section index
 
 **This file**
@@ -180,7 +185,7 @@ leave the server**. That is a hard architectural rule (see [§17](backend.md#17-
 | **M** | MongoDB | Mongoose against MongoDB Atlas — the only storage driver | ✅ |
 | **E** | Express | Express 4 + `cors` + `dotenv` | ✅ |
 | **R** | React | React 19 + Vite 8 SPA | ✅ |
-| **N** | Node.js | Node 22, ESM (`"type": "module"`) | ✅ |
+| **N** | Node.js | Node 20.19+ required — that floor is Vite 8's, not the backend's — developed and verified on Node 22, ESM (`"type": "module"`) | ✅ |
 
 **The M is no longer partial.** MongoDB used to be an optional adapter behind a facade; it is
 now the only store ([ADR-24](decisions.md#adr-24-delete-mock-mode-and-the-file-store)). Reports are
@@ -199,7 +204,7 @@ place that enforces owner scoping rather than the one place that picks a driver.
 
 | Package | Version | Why this and not something else |
 |---|---|---|
-| `express` | ^4.21 | Ubiquitous, well-understood, and — critically — gives direct access to the raw response object, which is what SSE needs. A meta-framework would add indirection for zero benefit in a 4-route API. |
+| `express` | ^4.21 | Ubiquitous, well-understood, and — critically — gives direct access to the raw response object, which is what SSE needs. A meta-framework would add indirection for zero benefit in a six-route API. |
 | `openai` | ^4.79 | Used **only** as an HTTP client for the `/v1/chat/completions` protocol. It handles streaming delta parsing, retries, and timeouts correctly. We never use an OpenAI account. See [ADR-01](decisions.md#adr-01-openai-sdk-as-transport-not-vendor). |
 | `@tavily/core` | ^0.5.6 | Purpose-built for LLM research: returns cleaned, snippet-ready content rather than raw SERP HTML. See [§11](backend.md#11-search-tavily-and-normalisation). |
 | `@clerk/express` | ^2.1 | Verifies the Clerk session on every request and attaches `req.auth`. Reports are owner-scoped, so "unauthenticated request" has to be impossible rather than merely unlikely. See [ADR-23](decisions.md#adr-23-clerk-auth-with-owner-scoped-reports). |
@@ -217,7 +222,7 @@ place that enforces owner scoping rather than the one place that picks a driver.
 | `react` 19 / `react-dom` | The host app; already present in the boilerplate. |
 | `vite` 8 | Dev server with HMR in milliseconds; no config burden. |
 | `@clerk/react` | Auth state, `getToken()` for the bearer header, and the sign-in UI. The only dependency that talks to a vendor from the browser. |
-| `docx` | Builds the Word export. Lazily imported so its ~467 kB stays out of the main bundle unless someone exports. |
+| `docx` | Builds the Word export. Lazily imported so its ~456 kB stays out of the main bundle unless someone exports. |
 | `react-markdown` 9 + `remark-gfm` 4 | Renders model output as Markdown **without `dangerouslySetInnerHTML`**. See [ADR-14](decisions.md#adr-14-react-markdown-instead-of-innerhtml). |
 | `tailwindcss` 4 + `@tailwindcss/vite` | Utility styling through the v4 Vite plugin — no `tailwind.config.js`, no PostCSS config. See [ADR-19](decisions.md#adr-19-tailwind-v4-for-styling). |
 | `mermaid` 12 | Renders the report's ` ```mermaid ` blocks to SVG. Lazily imported so the library is code-split out of the main bundle. See [ADR-18](decisions.md#adr-18-client-side-mermaid-with-a-syntax-fallback). |
@@ -225,7 +230,7 @@ place that enforces owner scoping rather than the one place that picks a driver.
 **Deliberately still absent:** any state library (React state is sufficient — see
 [§13.1](frontend.md#131-state-machine)), any HTTP client (native `fetch` streams, which `axios`
 historically handled worse), and any UI kit — the four primitives in `components/ui/`
-are ~80 lines in total.
+are ~90 lines in total.
 
 ---
 
@@ -305,6 +310,8 @@ backend/
 frontend/
   index.html                       entry: favicon, title, description, mounts /src/main.jsx
   vite.config.js                   react + @tailwindcss/vite plugins
+  package.json                     react 19 / vite 8 / clerk / mermaid / docx; eslint 10
+  eslint.config.js                 flat config (react-hooks + react-refresh)
   public/favicon.svg               the app icon (referenced by index.html)
   src/
     main.jsx                       createRoot + ClerkProvider
@@ -318,7 +325,10 @@ frontend/
       docx.js                      Markdown → .docx (headings/tables/images/sources)
       format.js                    hostOf / timeAgo / slugify / wordCount
     components/
-      ui/                          Button, Panel (+PanelHead), Badge
+      ui/
+        Button.jsx                 primary / secondary / ghost button primitive
+        Panel.jsx                  Panel + PanelHead surface primitives
+        Badge.jsx                  small status pill
       QueryForm.jsx                input, examples, run/stop
       AgentTrace.jsx               phase badge, scope note, plan checklist, step trace
       Landing.jsx                  signed-out marketing page
@@ -335,6 +345,8 @@ docs/                              the architecture record, split by module
   frontend.md                      §13     state machine, components, export, styling
   verification.md                  §15, §19–§20   measured runs, performance, limitations
   decisions.md                     §16     the 25 ADRs
+scripts/
+  check-docs.mjs                   fact-checks this record against the code (`node scripts/check-docs.mjs`)
 ```
 
 ---
