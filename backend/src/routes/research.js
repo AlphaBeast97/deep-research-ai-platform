@@ -100,7 +100,9 @@ router.post('/stream', async (req, res) => {
     closed = true
     clearInterval(heartbeat)
     clearTimeout(deadline)
-    if (!controller.signal.aborted) controller.abort(new Error('The client disconnected.'))
+    // An `AbortedError` so a user pressing Stop is treated as a stop rather than
+    // logged as a pipeline incident.
+    if (!controller.signal.aborted) controller.abort(new AbortedError('The client disconnected.'))
   })
 
   try {
