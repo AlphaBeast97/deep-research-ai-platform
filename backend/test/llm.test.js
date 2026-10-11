@@ -1,6 +1,12 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { AbortedError, combineSignals, isAbortError, throwIfAborted } from '../src/llm.js'
+import {
+  AbortedError,
+  combineSignals,
+  explainError,
+  isAbortError,
+  throwIfAborted,
+} from '../src/llm.js'
 
 test('no signals means no signal', () => {
   assert.equal(combineSignals(undefined, null), undefined)
@@ -43,6 +49,29 @@ test('an abort with no reason still reads as a stop, and a live signal is a no-o
   assert.throws(() => throwIfAborted(bare.signal), (err) => isAbortError(err))
   assert.doesNotThrow(() => throwIfAborted(new AbortController().signal))
   assert.doesNotThrow(() => throwIfAborted(undefined))
+})
+
+test('a stop reason set by the run deadline survives error translation', () => {
+  const controller = new AbortController()
+  const reason = new AbortedError('The run exceeded 15 minutes and was stopped.')
+  controller.abort(reason)
+
+  const translated = explainError(new Error('Connection error.'), controller.signal)
+  // The user is told why the run ended, not just that it did.
+  assert.equal(translated, reason)
+  assert.equal(isAbortError(translated), true)
+})
+
+test('an abort with no reason becomes a generic stop; a provider timeout is named', () => {
+  const bare = new AbortController()
+  bare.abort()
+
+  assert.equal(isAbortError(explainError(new Error('x'), bare.signal)), true)
+
+  const timeout = Object.assign(new Error('Request timed out.'), {
+    name: 'APIConnectionTimeoutError',
+  })
+  assert.match(explainError(timeout, new AbortController().signal).message, /LLM_TIMEOUT_MS/)
 })
 
 test('only AbortError-shaped failures count as a stop', () => {

@@ -4,7 +4,7 @@ import { runResearch } from '../agents/orchestrator.js'
 import { REPORT_TYPES } from '../agents/reportTypes.js'
 import config from '../config.js'
 import * as db from '../db/index.js'
-import { isAbortError } from '../llm.js'
+import { AbortedError, isAbortError } from '../llm.js'
 
 const router = Router()
 
@@ -84,10 +84,14 @@ router.post('/stream', async (req, res) => {
   // simply discarded the output.
   const controller = new AbortController()
   const runTimeoutMs = config.research.runTimeoutMs
+  // An `AbortedError` (not a bare Error) so the clients below still recognise
+  // this as a stop while its message survives into what the user sees.
   const deadline = setTimeout(
     () =>
       controller.abort(
-        new Error(`The run exceeded ${Math.round(runTimeoutMs / 60_000)} minutes and was stopped.`),
+        new AbortedError(
+          `The run exceeded ${Math.round(runTimeoutMs / 60_000)} minutes and was stopped.`,
+        ),
       ),
     runTimeoutMs,
   )

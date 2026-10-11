@@ -75,9 +75,16 @@ const emptyMessage = (model) =>
  * Turn an SDK failure into something a user can act on. Aborts caused by the
  * caller are re-raised as `AbortedError` so the pipeline can tell "the user
  * stopped this" apart from "this broke".
+ *
+ * When the stop switch carries a reason (the run deadline sets one) that error
+ * is returned as-is: it is the only explanation the user gets, and replacing it
+ * with a generic "the run was stopped" hides why.
  */
-function explainError(err, signal) {
-  if (signal?.aborted) return err instanceof AbortedError ? err : new AbortedError()
+export function explainError(err, signal) {
+  if (signal?.aborted) {
+    if (signal.reason instanceof Error) return signal.reason
+    return err instanceof AbortedError ? err : new AbortedError()
+  }
   if (err?.name === 'AbortError') return err
   if (err?.name === 'APIConnectionTimeoutError' || /timed out/i.test(err?.message || '')) {
     return new Error(timeoutMessage())

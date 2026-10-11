@@ -278,7 +278,7 @@ All backend settings live in `backend/.env` (see `.env.example`):
 | `RESEARCH_CONCURRENCY` | `3` | Sub-questions researched in parallel (1–6) |
 | `RUN_TIMEOUT_MS` | `900000` | Hard ceiling on one run, in ms |
 | `LLM_TIMEOUT_MS` | `120000` | Hard ceiling on one model request, in ms |
-| `LLM_MAX_RETRIES` | `1` | Retries after a timeout/failure |
+| `LLM_MAX_RETRIES` | `2` | Retries after a timeout/failure (worst case ≈ `(retries + 1) × LLM_TIMEOUT_MS`) |
 | `LLM_STREAM_IDLE_TIMEOUT_MS` | `60000` | How long a streamed answer may send nothing before it is cut off |
 
 To make runs much faster at the cost of depth, set `RESEARCH_MAX_ROUNDS=0`,
