@@ -10,7 +10,7 @@ import { resolveReportType } from './reportTypes.js'
  * The report type chosen by the user selects the structure and the writing
  * stance; everything else about the prompt is shared.
  */
-export async function writeDraft({ query, plan, research, sources, rounds, reportType, onToken }) {
+export async function writeDraft({ query, plan, research, sources, rounds, reportType, onToken, signal }) {
   const type = resolveReportType(reportType)
   return chatStream({
     system: writerSystem(type),
@@ -18,6 +18,7 @@ export async function writeDraft({ query, plan, research, sources, rounds, repor
     model: config.llm.smartModel,
     temperature: 0.5,
     onToken,
+    signal,
   })
 }
 
@@ -35,6 +36,7 @@ export async function reviseReport({
   critique,
   reportType,
   onToken,
+  signal,
 }) {
   const type = resolveReportType(reportType)
   return chatStream({
@@ -43,5 +45,6 @@ export async function reviseReport({
     model: config.llm.smartModel,
     temperature: 0.35,
     onToken,
+    signal,
   })
 }

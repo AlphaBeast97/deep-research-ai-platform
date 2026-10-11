@@ -17,7 +17,10 @@ non-overlapping sub-questions that together would fully answer the topic.
 
 Rules:
 - Each sub-question must be specific, self-contained, and directly searchable.
-- Prefer 5 to 8 sub-questions. Never exceed the stated maximum.
+- Aim for a number of sub-questions close to the stated maximum: the goal is to
+  cover the topic as fully as that budget allows. Never exceed the maximum, and
+  do not pad the plan to reach it — a narrow topic is better served by fewer,
+  genuinely distinct questions than by overlapping ones.
 - Cover breadth first (background, current state, key players/data) then depth
   (economics, trade-offs, risks, counter-arguments, outlook) as appropriate.
 - Give each sub-question a short "theme" so the writer can group them into
@@ -369,18 +372,35 @@ Respond with JSON:
   "recommendations": ["<short, actionable instruction for the revisor>"]
 }`
 
-export const criticUser = (query, research, sources, draft) => {
+export const criticUser = (query, research, sources, draft, { type, expand = [] } = {}) => {
+  const full = new Set(expand)
   const sourceList = sources
-    .map((s) => `[${s.index}] ${s.title} — ${s.url}\n    ${s.snippet}`)
+    .map((s) => {
+      const body =
+        s.content && full.has(s.index)
+          ? `Full text (truncated):\n    ${s.content}`
+          : `Search snippet: ${s.snippet}`
+      return `[${s.index}] ${s.title} — ${s.url}\n    ${body}`
+    })
     .join('\n')
 
   return [
     `Research topic: "${query}"`,
+    `Report format requested: ${type.label} — ${type.blurb}`,
+    '',
+    'Required structure for this deliverable:',
+    type.spec,
+    '',
+    'Audit STRUCTURE against that specification: a missing or renamed required\n' +
+      'section, a required table or diagram that is absent, or content that belongs\n' +
+      'to a different report format is an issue. Judge the report as the\n' +
+      'deliverable the user asked for, not as a generic essay.',
     '',
     'Gathered findings the draft was built from:',
     findingsBlock(research),
     '',
-    'Numbered sources:',
+    'Numbered sources (the ones the draft cites are included with their full text;\n' +
+      'check a claim against that body text before calling it invented):',
     sourceList || '(none)',
     '',
     'DRAFT REPORT TO AUDIT:',

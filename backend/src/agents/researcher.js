@@ -11,18 +11,49 @@ function asCoverage(value) {
   return Math.min(Math.max(n, 0), 100)
 }
 
-function asFindings(value) {
-  if (!Array.isArray(value)) return []
-  return value
-    .map((f) => {
-      const point = asText(f?.point ?? f?.claim)
-      const cites = Array.isArray(f?.cites)
-        ? [...new Set(f.cites.map((c) => Number.parseInt(c, 10)).filter(Number.isFinite))]
+/**
+ * Normalise the model's findings and drop anything that is not grounded.
+ *
+ * `cites` arrives in whatever shape the model felt like: an array of numbers,
+ * an array of strings, or one comma-separated string. It is also the model's
+ * word alone that the numbers refer to sources it was actually given, so every
+ * citation is checked against the indexes of *this* sub-question's source list.
+ * A finding whose citations all fall outside that list is, by the system's own
+ * contract, unsupported — keeping it would feed the writer a claim with an
+ * empty `[]` citation and invite exactly the uncited assertions the audit then
+ * flags. Those are dropped and counted instead.
+ */
+export function parseFindings(value, validIndexes) {
+  const valid = validIndexes ? new Set(validIndexes) : null
+  const raw = Array.isArray(value) ? value : []
+
+  let dropped = 0
+  const findings = []
+
+  for (const f of raw) {
+    const point = asText(f?.point ?? f?.claim)
+    if (!point) continue
+
+    const cites = Array.isArray(f?.cites)
+      ? f.cites
+      : typeof f?.cites === 'string'
+        ? f.cites.split(/[,\s]+/)
         : []
-      const confidence = asText(f?.confidence).toLowerCase()
-      return { point, cites, confidence: CONFIDENCE.has(confidence) ? confidence : 'medium' }
-    })
-    .filter((f) => f.point)
+
+    const numbers = [
+      ...new Set(cites.map((c) => Number.parseInt(c, 10)).filter(Number.isFinite)),
+    ].filter((n) => !valid || valid.has(n))
+
+    if (!numbers.length) {
+      dropped++
+      continue
+    }
+
+    const confidence = asText(f?.confidence).toLowerCase()
+    findings.push({ point, cites: numbers, confidence: CONFIDENCE.has(confidence) ? confidence : 'medium' })
+  }
+
+  return { findings, dropped }
 }
 
 /**
@@ -30,20 +61,27 @@ function asFindings(value) {
  * for it (some with full page text), extract grounded findings where every
  * claim carries source numbers, plus an honest coverage estimate.
  */
-export async function extract(question, intent, sources) {
+export async function extract(question, intent, sources, { signal } = {}) {
   const { data, usage } = await chatJSON({
     system: RESEARCHER_SYSTEM,
     user: researcherUser(question, intent, sources),
     model: config.llm.model,
     temperature: 0.2,
+    signal,
   })
+
+  const { findings, dropped } = parseFindings(
+    data.findings,
+    sources.map((s) => s.index),
+  )
 
   return {
     question,
     intent,
     summary: asText(data.summary),
     coverage: asCoverage(data.coverage),
-    findings: asFindings(data.findings),
+    findings,
+    droppedFindings: dropped,
     gaps: asStrings(data.gaps),
     usage,
   }
@@ -60,7 +98,29 @@ export function emptyExtraction(question, intent) {
     summary: 'No sources were found for this sub-question.',
     coverage: 0,
     findings: [],
+    droppedFindings: 0,
     gaps: ['Search returned no usable results for this sub-question.'],
+    usage: null,
+  }
+}
+
+/**
+ * A degraded extraction for a sub-question whose extraction call failed.
+ *
+ * One flaky model response must not cost the whole run: the other
+ * sub-questions have already been researched, and the orchestrator would
+ * otherwise throw away minutes of search and page reads. The failure is carried
+ * in `gaps` so it reaches the report's limitations rather than disappearing.
+ */
+export function failedExtraction(question, intent, reason) {
+  return {
+    question,
+    intent,
+    summary: 'Findings could not be extracted for this sub-question.',
+    coverage: 0,
+    findings: [],
+    droppedFindings: 0,
+    gaps: [`Extraction failed (${reason}) — this sub-question is unanswered.`],
     usage: null,
   }
 }

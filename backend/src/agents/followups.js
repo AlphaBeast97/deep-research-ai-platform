@@ -14,7 +14,7 @@ import { FOLLOWUP_SYSTEM, followUpUser } from './prompts.js'
  * would not help (e.g. the information is not public), which is what stops the
  * loop from burning rounds on an unanswerable sub-question.
  */
-export async function proposeQueries(question, extraction, alreadyAsked = []) {
+export async function proposeQueries(question, extraction, alreadyAsked = [], { signal } = {}) {
   const max = config.research.maxFollowUpQueries
   if (max === 0) return { queries: [], reason: 'follow-up queries disabled', usage: null }
 
@@ -23,6 +23,7 @@ export async function proposeQueries(question, extraction, alreadyAsked = []) {
     user: followUpUser(question, extraction, alreadyAsked, max),
     model: config.llm.model,
     temperature: 0.4,
+    signal,
   })
 
   const asked = new Set(alreadyAsked.map((q) => q.toLowerCase().trim()))

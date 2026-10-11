@@ -26,6 +26,7 @@ export default function ReportView({
   audit,
   sources = [],
   typeLabel,
+  stopped = false,
 }) {
   const containerRef = useRef(null)
   const [copied, setCopied] = useState(false)
@@ -105,6 +106,15 @@ export default function ReportView({
         {durationMs ? ` · ${(durationMs / 1000).toFixed(1)}s` : ''}
         {typeLabel ? ` · ${typeLabel}` : ''}
       </p>
+
+      {/* A stopped run leaves a partial draft with no critique and no citation
+          audit — say so, rather than presenting it as a finished report. */}
+      {stopped && (
+        <div className="mt-2.5 rounded-control border border-warn/35 bg-warn/10 px-3.5 py-2.5 text-[12.5px] text-warn">
+          <strong>Stopped early.</strong> The critique and citation audit never ran,
+          so nothing below has been verified against its sources yet.
+        </div>
+      )}
 
       {/* ── integrity summary ───────────────────────────────── */}
       {(audit || critique) && (

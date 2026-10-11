@@ -401,33 +401,40 @@ that benefits from a stronger model.
 (`config.js`, `smartModel`). This means a provider with only one good model still works
 with a single setting — the tiering is an *optimisation*, never a *requirement*.
 
-### 7.3 Why research is sequential, not parallel
+### 7.3 Why research runs in a bounded pool
 
-All sub-questions are processed in a `for … of` loop. This is deliberate:
+All sub-questions are processed through
+`mapConcurrent(subQuestions, RESEARCH_CONCURRENCY)` (`util/concurrency.js`). The research
+phase is almost entirely network wait — Tavily searches, page extracts, and one extraction
+call per sub-question — and the sub-questions are independent, so the pool overlaps that
+wait instead of adding it up. This replaced an earlier fully sequential `for … of` loop.
 
-| Consideration | Sequential (chosen) | Parallel (rejected for v1) |
+| Consideration | Bounded pool (chosen) | Fully sequential (previous) |
 |---|---|---|
-| Source numbering | Trivial — sources are numbered in the order found | Race conditions; numbering becomes non-deterministic, breaking citation chips |
-| Rate limits | One request at a time | Can trip Tavily/provider limits instantly |
-| Debuggability | The trace reads top-to-bottom | Interleaved, confusing trace |
-| Memory | One extraction in flight | All extractions buffered |
-| **Latency** | **Slower** (34.8 s measured) | Faster |
+| Source numbering | Unchanged — `SourceIndex` assigns each number synchronously as a result is folded in, so two workers cannot race or interleave a numbering decision | Trivial, but not actually the constraint it appeared to be |
+| Rate limits | Bounded by `RESEARCH_CONCURRENCY` (default `3`); the whole run is also capped by `RUN_TIMEOUT_MS` | One request at a time |
+| Gap filling | Each sub-question still owns its own `alreadyAsked` set and round loop — the pool parallelises *sub-questions*, never rounds | Each round extends its own history |
+| Order | `mapConcurrent` preserves input order, so the writer still receives the plan's order | Same |
+| Trace | Interleaved: several sub-questions visibly progress at once | Reads top-to-bottom |
+| **Latency** | **Overlaps the wait** | **Adds it up** |
 
-**This is the single biggest performance trade-off in the system**, and it is the one most
-worth revisiting. It is called out explicitly in [§19](#19-performance-where-the-time-goes)
-and [§20](#20-known-limitations-and-honest-gaps) rather than hidden. The reason it's
-acceptable for v1: the pipeline is *streamed*, so the user sees progress immediately —
-latency is visible and legible rather than a frozen screen, which is the actual UX problem.
+**Why the risk was lower than it looked.** The citation invariant never depended on *which*
+sub-question ran first — only on the order results are *folded in*, and folding is a
+synchronous operation in a single-threaded runtime. Moving numbering into one small, tested
+class (`SourceIndex`, `test/sources.test.js`) made that explicit rather than implicit in a
+loop body. What concurrency does change is the trace: it is no longer a top-to-bottom
+narrative of one sub-question at a time, which is the visible price of the wall-clock win.
 
 ### 7.4 Source indexing — the backbone of citations
 
 ```mermaid
 flowchart LR
-    A["Tavily results<br/>(per sub-question)"] --> B{"URL already<br/>seen?"}
-    B -->|"yes"| DROP["drop"]
+    A["Tavily results<br/>(per sub-question)"] --> B{"URL already<br/>numbered?"}
+    B -->|"yes"| REUSE["reuse the number<br/>(add to this sub-question's<br/>evidence list)"]
     B -->|"no"| C["assign index = sources.length + 1<br/>id = s &lt;index&gt;"]
     C --> D["push to sources[]<br/>emit 'sources' event"]
-    D --> E["feeds researcher prompt<br/>as [1] … [n]"]
+    C --> REUSE
+    REUSE --> E["feeds researcher prompt<br/>as [1] … [n]"]
     E --> F["feeds writer prompt<br/>as the citation whitelist"]
 ```
 
@@ -435,6 +442,14 @@ flowchart LR
 and never changes. That number is what appears in researcher output, in the writer's
 citation whitelist, and in the UI's source cards. Deduplication by URL happens *before*
 numbering, so the same page found for two sub-questions cannot occupy two slots.
+
+**A URL seen twice is reused, not discarded.** The earlier implementation dropped a repeat
+outright, which meant a sub-question whose search re-ranked a page that an *earlier*
+sub-question had already found was handed a strictly smaller evidence set than Tavily
+returned — its best result silently withheld, and the source later reported as "available
+but never cited" by the audit. `SourceIndex.add()` returns the existing source instead
+(`{ source, isNew }`), so the researcher sees it while only genuinely new URLs are emitted
+to the client (`test/sources.test.js` covers both halves).
 
 **Why this matters:** without a stable index there is no way to make `[2]` in the final
 report reliably point at source card 2. Every downstream guarantee rests on this one rule.
@@ -561,8 +576,12 @@ plus the per-format structure blocks they are composed with (see
 - **"smallest set of independent, non-overlapping sub-questions"** — prevents the model
   from producing five variations of the same question, which would waste searches and
   produce a repetitive report.
-- **"Prefer 5 to 8 … Never exceed the stated maximum"** — the count is injected per-request
-  from `MAX_SUBQUESTIONS`, so the prompt and the code can't disagree.
+- **"Aim for a number of sub-questions close to the stated maximum … never exceed the
+  maximum, and do not pad the plan to reach it"** — the maximum is injected per-request from
+  `MAX_SUBQUESTIONS`. The prompt used to ask for "5 to 8" while the code clamped the list to
+  `MAX_SUBQUESTIONS` (default 6), so a plan of 6 was truncated and a topic that only needed 4
+  questions was pushed to invent a fifth. The instruction is now stated relative to the
+  injected maximum, which is the only number the model is actually given.
 - **`intent` and `theme` per sub-question** — `intent` says what the investigation is trying
   to establish; `theme` groups sub-questions so the writer can build thematic sections
   instead of a flat list. Both are for the *writer*, not the searcher.
@@ -681,6 +700,14 @@ The critic is the pipeline's adversarial reviewer, and the prompt is written to 
   mechanically by the reviser; prose review cannot.
 - **It is given the citation whitelist**, so "this citation is out of range" is a check the
   model can actually perform rather than hallucinate.
+- **It is given the requested format's structure specification** — the same spec the writer
+  was given — so the `structure` check audits the deliverable the user asked for instead of
+  judging every report as an analyst report.
+- **It reads the same evidence the researcher did.** The sources the draft cites are expanded
+  to their full page text (capped by `CRITIC_FULL_TEXT_SOURCES`), because auditing a draft
+  against 800-character snippets produces both error types at once: an honest figure gets
+  flagged as `overreach` (the snippet never contained it) and a real `miscitation` slips
+  through (its support is in the article body).
 - **It may conclude that a criticism is unfounded.** In the measured run the critic raised
   two issues and explicitly noted on the second that "no change needed" — because the prompt
   asks for an honest audit, not a quota of complaints. That nuance is preserved in the stored
@@ -812,12 +839,12 @@ sequenceDiagram
     L-->>O: {title, subQuestions}
     O-->>API: plan
 
-    loop each sub-question (sequential)
+    par pool of RESEARCH_CONCURRENCY workers (sub-questions, emitted in plan order)
         O-->>API: status, step(start)
         O->>T: search(sub-question)
         T-->>O: results
-        O->>O: dedupe + number
-        O-->>API: sources
+        O->>O: number or reuse (SourceIndex)
+        O-->>API: sources (new URLs only)
         O->>L: extract(question, sources)
         L-->>O: {summary, findings, gaps}
         O-->>API: findings, step(done)
@@ -1201,7 +1228,9 @@ stateDiagram-v2
 
 - **`idle`** — nothing yet.
 - **`running`** — request in flight; `AbortController` held in a ref.
-- **`done`** — either the `done` event arrived, or the user aborted (partial report kept).
+- **`done`** — either the `done` event arrived, or the user aborted. A stopped run keeps the
+  partial report *and* sets `stopped`, so the view labels it a partial draft (the critique and
+  the citation audit never ran) instead of presenting it as finished.
 - **`error`** — fetch threw or an `error` event arrived.
 
 **Why one reducer-style `apply(event)` and not per-event handlers:** every event is folded
@@ -1210,9 +1239,12 @@ vocabulary of the backend and the state transitions of the frontend visibly 1:1 
 event type you add one `case`. It also means React can't tear state across events, because
 functional updates are serialised.
 
-**Why `AbortController` and not a "cancel" flag:** aborting propagates down to the
-`fetch`, which closes the TCP connection, which fires `res.on('close')` on the server and
-stops the run's output. One mechanism, both ends. See [§9.5](#95-heartbeat-and-dead-socket-handling).
+**Why `AbortController` and not a "cancel" flag:** aborting propagates down to the `fetch`,
+which closes the TCP connection, which fires `res.on('close')` in the route, which aborts the
+pipeline's own `AbortController` — so the model and search calls in flight are cancelled
+instead of completing for a client that has gone away, and the next checkpoint
+(`throwIfAborted`) stops the run. One mechanism, both ends. See
+[§9.5](#95-heartbeat-and-dead-socket-handling).
 
 ### 13.2 Component tree
 
@@ -1416,6 +1448,9 @@ it is for the pipeline to quietly regress.
 | `LLM_MODEL` | `gpt-4o-mini` | researcher tier | provider 404 |
 | `LLM_MODEL_SMART` | falls back to `LLM_MODEL` | planner + writer tier | provider 404 |
 | `LLM_JSON_MODE` | `true` | send `response_format=json_object` | 400s on strict local models |
+| `LLM_TIMEOUT_MS` | `120000` | hard ceiling on one model request, **clamped 5 s–10 min** | too low truncates slow models; the SDK default (10 min) is what let a stall look like a hang |
+| `LLM_MAX_RETRIES` | `2` | retries after a timeout/5xx, **clamped 0–3** | worst case ≈ `(retries + 1) × LLM_TIMEOUT_MS` |
+| `LLM_STREAM_IDLE_TIMEOUT_MS` | `60000` | how long a streamed answer may send nothing before it is cut off, **clamped 5 s–10 min** | a slow *thinking* model can trip this; raise it for one |
 | `TAVILY_API_KEY` | — | required for search + full-page extraction | **exit(1)** at boot |
 | `TAVILY_MAX_RESULTS` | `6` | sources per sub-question, **clamped 1–12** | out-of-range silently clamped |
 | `MAX_SUBQUESTIONS` | `6` | planner breadth, **clamped 1–8** | out-of-range silently clamped |
@@ -1426,6 +1461,9 @@ it is for the pipeline to quietly regress.
 | `DEEP_FETCH` | `true` | read full pages via Tavily `extract` | snippets only = thinner report |
 | `DEEP_FETCH_SOURCES` | `3` | pages read per sub-question, **clamped 0–8** | higher = much larger prompts and slower |
 | `RESEARCH_CRITIQUE` | `true` | run the critic + revision phases | off = no revision pass, faster |
+| `CRITIC_FULL_TEXT_SOURCES` | `8` | cited sources the critic reads in full, **clamped 0–16** | 0 = snippets only, which is what causes both false `overreach` flags and missed miscitations |
+| `RESEARCH_CONCURRENCY` | `3` | sub-questions researched in parallel, **clamped 1–6** | high values can trip provider/Tavily rate limits |
+| `RUN_TIMEOUT_MS` | `900000` | hard ceiling on one run, **clamped 1 min–1 h** | the aborted run is reported, not silently truncated |
 | `MONGODB_URI` | — | MongoDB Atlas connection string (**required**) | **exit(1)** at boot |
 | `CLERK_SECRET_KEY` | — | Clerk secret key; verifies sessions (**required**, server-only) | **exit(1)** at boot |
 | `CLERK_PUBLISHABLE_KEY` | — | Clerk publishable key (**required**) | **exit(1)** at boot |
@@ -1989,20 +2027,34 @@ That ratio says the depth is bought almost entirely with *input context* — rea
 actual sources — rather than with longer reasoning or longer output. For a research task that
 is the right way round: more evidence in, same-shaped answer out.
 
-### The latency insight (unchanged, and deliberately not fixed)
+### The latency fix: bounded concurrency in the research phase
 
-**Research is the only phase worth optimising.** Planning, critique, revision, and audit
-together are under 10 s. If latency ever mattered, the fix is still the same: run the
-sub-question research **concurrently**.
+**Research was the only phase worth optimising**, and it now runs as a bounded pool
+([§7.3](#73-why-research-runs-in-a-bounded-pool)) instead of a sequential loop. Measured on
+a later live run ("Grid-scale battery storage costs and deployment trends",
+`RESEARCH_CONCURRENCY=3`, `MAX_SUBQUESTIONS=4`, `RESEARCH_MAX_ROUNDS=1`,
+`DEEP_FETCH_SOURCES=2`, Gemini 3.5 Flash / Flash Lite):
 
-**Why it still wasn't done:** deterministic source numbering
-([§7.4](#74-source-indexing--the-backbone-of-citations)) depends on ordering, and the
-*sequential* loop is what makes the gap-filling logic ([§7.5](#75-the-gap-filling-loop-iterative-depth))
-tractable — each round extends a sub-question's own history without racing another one.
-Parallelising would need a two-pass scheme (gather all results, then number them) or
-pre-allocated per-sub-question number ranges, plus a rethinking of the per-sub-question
-`alreadyAsked` set. That is a real design change with real risk to the citation invariant.
-It stays the **first** item in [§20](#20-known-limitations-and-honest-gaps).
+| Phase | Time | Share | Notes |
+|---|---|---|---|
+| Plan | 2.7 s | 5 % | one `chatJSON` call |
+| **Research** | **24.8 s** | **49 %** | **4 sub-questions in parallel**, 6 search rounds, 38 sources, 8 full pages |
+| Draft | 6.8 s | 13 % | streamed |
+| Critique | 1.5 s | 3 % | one `chatJSON` call |
+| Revision | 4.6 s | 9 % | streamed |
+| Audit | 0.004 s | 0 % | pure regex + set lookup, no model |
+| **Total** | **50.5 s** | 100 % | 38 sources, 47 references, 13 cited, `invalid: []`, 1,165-word risk assessment |
+
+The research phase alone was ~113 s while sequential (measured above, but with *different*
+knobs — 5 sub-questions, `RESEARCH_MAX_ROUNDS=2`, `DEEP_FETCH_SOURCES=3` — so the two runs are
+not a like-for-like speed-up claim; the point is that the phase now overlaps its own network
+wait instead of accumulating it). Across the concurrent runs observed while making this
+change, research landed between **16 s and 25 s** for 4 sub-questions, and it remains the
+dominant phase at roughly half the run.
+
+**What is still not fixed:** the pool width is a constant. It cannot back off when a provider
+rate-limits the run, and it does not adapt to how many sub-questions the planner produced.
+That is [limitation #1](#20-known-limitations-and-honest-gaps).
 
 **The explicit trade accepted here:** the user was asked how to spend the budget and chose
 *"don't care about latency — prefer maximum depth and verification, even 3–5 minutes."* That
@@ -2012,8 +2064,9 @@ returns roughly v1 behaviour) but it is deliberately turned up.
 
 ### The perceived-latency mitigation
 
-133 seconds is acceptable *because it is streamed and legible*. Using the measured phase
-timings ([§15.1](#151-end-to-end-live-run)), the user has feedback almost immediately:
+Two minutes — or fifty seconds with the concurrent research phase — is acceptable *because it
+is streamed and legible*. Using the measured phase timings
+([§15.1](#151-end-to-end-live-run)), the user has feedback almost immediately:
 
 - `meta` + first `status` → within ~1 s
 - `plan` (the checklist, with scope and themes) → at ~2.5 s
@@ -2037,7 +2090,7 @@ Ordered by how much they'd matter if this became more than a local tool.
 
 | # | Limitation | Impact | Sketch of the fix |
 |---|---|---|---|
-| 1 | **Research is sequential** | ~113 s of a 133 s run | Bounded-concurrency fan-out with a two-pass numbering scheme |
+| 1 | **The research pool width is fixed** (`RESEARCH_CONCURRENCY`) | It cannot adapt to a provider's rate limits, and a value that is too high trips them instead of going faster | Scale the width to the remaining sub-questions and back off on a `429`/`retry-after` |
 | 2 | **Auth is login-only** | No roles, sharing, teams or org scoping | Clerk Organizations + an `orgId` alongside `ownerId` |
 | 3 | **No local/offline mode** | A missing key means the server will not boot | Deliberate ([ADR-24](#adr-24-delete-mock-mode-and-the-file-store)); a documented demo mode could return behind an explicit flag |
 | 4 | **Prompt injection from web content** | A hostile page could skew a report | Source allow-listing, injection classifiers, output review — all partial |
@@ -2046,12 +2099,14 @@ Ordered by how much they'd matter if this became more than a local tool.
 | 7 | **Session tokens are the only auth signal** | A leaked token is valid until it expires | Short token lifetime is Clerk's default; add audience/org claims if this API is ever shared |
 | 8 | **No reconnecting SSE** | A dropped connection ends the run | Persist partial progress and offer `GET /api/research/:id` resume |
 | 9 | **Search quality unseen** | A run with no results still "succeeds" | Surface `gaps` prominently in the UI; warn when `gaps` is non-empty |
-| 10 | **No automated test suite** | Regressions caught only by manual runs | The pure pieces (citations, planner parsing, `missingKeys`) are the cheapest first tests; the network calls need stubbing |
+| 10 | **Tests cover the pure logic, not the pipeline** | `npm test` (39 tests) covers the citation audit and sanitiser, the source index, finding validation, the concurrency pool, critique normalisation and stall detection — but the network paths are only exercised by a live run | Stub `services/search.js` and `llm.js` behind a seam and drive `runResearch` against them |
 | 11 | **Report diagrams are LLM-authored** | A malformed ```` ```mermaid ```` block shows the "could not render" fallback instead of a diagram | The fallback and the prompt constraints already contain it; a server-side `mermaid.parse` guard could reject bad blocks before persisting |
 | 12 | **The critic is the same model family as the writer** | A shared blind spot can survive an adversarial review | The critique is one prompt in one file; pointing it at a *different* provider is a small, high-value change |
 | 13 | **Deep fetch reads only the top-N ranked URLs** | A lower-ranked source with the best primary data is never read in full | Make `DEEP_FETCH_SOURCES` adaptive (e.g. read more when coverage is low) or rank by something other than Tavily's score |
 | 14 | **The revision is unconditional, so it always costs ~6 s + tokens** | Slightly wasteful on an already-clean draft | ADR-21 explains why this was accepted; a cheap gate would need a trustworthy signal, which the `verdict` field demonstrably was not |
-| 15 | **The critic does not know the chosen report format** | Its `structure` check can flag a missing section but not a missing *required* section for formats other than the analyst one | Pass the resolved format's section list into the critic prompt so it can audit against it ([ADR-25](#adr-25-six-selectable-report-formats)) |
+| 15 | **The critic's full-text expansion is capped** (`CRITIC_FULL_TEXT_SOURCES`, default 8) | Beyond the cap it reviews snippets, so a miscitation whose support lives in the body of an uncapped source can still pass | Raise the cap, or expand exactly the sources behind the claims flagged as `overreach` in a second pass |
+| 16 | **A stopped run is not persisted** | Stop a run and the partial draft is on screen but absent from history; the work is unrecoverable | Persist a `status: "cancelled"` record with the partial report and mark it in the library |
+| 17 | **One retry is the whole JSON-repair strategy** | A provider that consistently answers in prose (rather than JSON) fails the run twice and gives up | Prompt-level enforcement is already the primary defence; a stricter repair turn or a schema validator would catch the rest |
 
 ---
 

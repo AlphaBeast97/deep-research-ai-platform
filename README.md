@@ -54,7 +54,7 @@ can take a few minutes, the `phase` event tells the UI which phase is running.
 | Agent | Job | Model |
 | --- | --- | --- |
 | **Planner** | Decomposes the topic into a scope note, an intent, searchable sub-questions and a report title | `LLM_MODEL_SMART` |
-| **Researcher** | Searches Tavily per sub-question (and reads the strongest pages in full), returns cited findings plus a self-reported coverage/confidence score | `LLM_MODEL` |
+| **Researcher** | Searches Tavily per sub-question (and reads the strongest pages in full), returns cited findings plus a self-reported coverage/confidence score. Sub-questions run in parallel (`RESEARCH_CONCURRENCY`) | `LLM_MODEL` |
 | **Follow-ups** | Reads low-coverage findings and proposes targeted follow-up search queries (the gap-filling loop) | `LLM_MODEL` |
 | **Writer** | Synthesizes all findings into a streamed Markdown report with inline `[n]` citations, then rewrites it during revision | `LLM_MODEL_SMART` |
 | **Critic** | Audits the draft against its own sources — unsupported claims, citation errors, missing angles — and returns a verdict | `LLM_MODEL_SMART` |
@@ -274,9 +274,37 @@ All backend settings live in `backend/.env` (see `.env.example`):
 | `DEEP_FETCH` | `true` | Read full page text for the strongest sources instead of snippets only |
 | `DEEP_FETCH_SOURCES` | `3` | Pages read in full per sub-question (0–8) |
 | `RESEARCH_CRITIQUE` | `true` | Run the critic → revisor pass before saving |
+| `CRITIC_FULL_TEXT_SOURCES` | `8` | Cited sources the critic reviews as full page text (0–16; `0` = snippets only) |
+| `RESEARCH_CONCURRENCY` | `3` | Sub-questions researched in parallel (1–6) |
+| `RUN_TIMEOUT_MS` | `900000` | Hard ceiling on one run, in ms |
+| `LLM_TIMEOUT_MS` | `120000` | Hard ceiling on one model request, in ms |
+| `LLM_MAX_RETRIES` | `1` | Retries after a timeout/failure |
+| `LLM_STREAM_IDLE_TIMEOUT_MS` | `60000` | How long a streamed answer may send nothing before it is cut off |
 
 To make runs much faster at the cost of depth, set `RESEARCH_MAX_ROUNDS=0`,
 `DEEP_FETCH=false` and `RESEARCH_CRITIQUE=false`.
+
+### Stalls, timeouts and stopping
+
+A run has hard ceilings at every level, because a model provider that accepts a
+request and then says nothing is indistinguishable from a slow one:
+
+- **Stopping a run stops the work.** The client's abort travels to the backend
+  over the SSE connection, which aborts the model and search calls in flight.
+  A stopped run is reported as a partial draft in the UI — no critique, no
+  citation audit — rather than presented as finished.
+- **`LLM_STREAM_IDLE_TIMEOUT_MS`** is the one that matters for the streamed
+  writer: the OpenAI SDK clears its own timeout as soon as response *headers*
+  arrive, so a stream that opens and then goes quiet is otherwise unbounded. The
+  watchdog re-arms on every token, so a slow-but-progressing report is never cut
+  off, however long it takes.
+- **An empty response is an error, not an empty report.** Some reasoning models
+  spend their entire budget thinking and return zero content tokens
+  (`finish_reason: "length"`); that is reported by name, with the model, instead
+  of being parsed as `{}` and quietly producing an empty plan or report.
+- **`RUN_TIMEOUT_MS`** is the backstop: it stops the run and tells the client
+  why, so no combination of slow provider and slow search can hold an SSE
+  connection open indefinitely.
 
 The frontend reads `VITE_API_URL` and `VITE_CLERK_PUBLISHABLE_KEY` from
 `frontend/.env` (see `frontend/.env.example`).
@@ -360,10 +388,16 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
 - Reports are private per user, but there are no roles, sharing or teams yet.
 - Tavily is the only search provider wired in; add another by extending `backend/src/services/search.js`.
 - Depth costs latency: a full live run (gap rounds + critique + revision) takes
-  **~2–3 minutes**, versus ~40 s for the original single-pass pipeline. The
-  dials in the config table above trade it back.
+  **~1.5–3 minutes**, versus ~40 s for the original single-pass pipeline. The
+  dials in the config table above trade it back — `RESEARCH_CONCURRENCY` is the
+  biggest lever, since the research phase is ~85 % of a run and is almost all
+  network wait.
+- A failed critic or revisor no longer discards the run: the draft is still
+  citation-audited and saved, and the trace says the critique pass failed. Only a
+  failed plan or draft is fatal.
 - The critic is the same model family as the writer, so it shares their blind
   spots — it is a useful second pass, not an independent adjudicator.
 - Deep fetch only pulls the top-ranked URLs per sub-question; long pages are
   truncated (currently ~6,000 chars) before extraction.
-- Any OpenAI-compatible LLM works via `LLM_BASE_URL` — but quality varies. Very small local models may produce malformed JSON or weak citations; `LLM_JSON_MODE=false` plus a larger model helps.
+- Any OpenAI-compatible LLM works via `LLM_BASE_URL` — but quality varies. Very small local models may produce malformed JSON or weak citations; `LLM_JSON_MODE=false` plus a larger model helps. A JSON answer that comes back as prose is re-asked once before the call fails.
+- Some reasoning models spend their whole budget thinking and return **no content at all** (`finish_reason: "length"`, `0` completion tokens). That is reported as an empty-response error naming the model, rather than silently producing an empty plan or report — if you see it, check `LLM_MODEL` / `LLM_MODEL_SMART` against your provider's catalogue and prefer a non-reasoning model for those tiers.

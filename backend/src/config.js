@@ -37,6 +37,25 @@ const config = {
     // Some servers reject response_format=json_object. When false we skip it and
     // rely on prompt-guided JSON + a parser that salvages the first {...} block.
     jsonMode: bool(process.env.LLM_JSON_MODE ?? process.env.OPENAI_JSON_MODE, true),
+
+    // ── stall protection ──────────────────────────────────────
+    // The OpenAI SDK defaults to a 10-minute timeout and 2 retries, so a
+    // provider that accepts a request and then sends nothing holds the whole
+    // run for up to half an hour. These three knobs bound that wait instead.
+    // Hard ceiling on one request (headers + body).
+    timeoutMs: clamp(int(process.env.LLM_TIMEOUT_MS, 120_000), 5_000, 600_000),
+    // Two retries (the SDK's own default) ride out a transient 5xx, which is
+    // common on shared provider endpoints. Worst case is roughly
+    // (retries + 1) × timeoutMs, which RUN_TIMEOUT_MS still caps.
+    maxRetries: clamp(int(process.env.LLM_MAX_RETRIES, 2), 0, 3),
+    // How long a *streamed* answer may go without emitting a token before it is
+    // treated as stalled. A stream that is still producing text is never cut
+    // off, however long the report takes.
+    streamIdleTimeoutMs: clamp(
+      int(process.env.LLM_STREAM_IDLE_TIMEOUT_MS, 60_000),
+      5_000,
+      600_000,
+    ),
   },
 
   tavily: {
@@ -62,6 +81,16 @@ const config = {
     deepFetchSources: clamp(int(process.env.DEEP_FETCH_SOURCES, 3), 0, 8),
     // Run the critic → revisor pass before persisting the report.
     critique: bool(process.env.RESEARCH_CRITIQUE, true),
+    // How many of the draft's cited sources the critic reads in full page text
+    // rather than as a search snippet (0 = snippets only).
+    criticFullTextSources: clamp(int(process.env.CRITIC_FULL_TEXT_SOURCES, 8), 0, 16),
+    // Sub-questions researched in parallel. The sub-questions are independent,
+    // so this is the main wall-clock lever; kept modest by default so a
+    // provider with per-minute limits is not hammered.
+    concurrency: clamp(int(process.env.RESEARCH_CONCURRENCY, 3), 1, 6),
+    // Absolute ceiling on one run, so no combination of slow model and slow
+    // search can hold a request (and a heartbeat) open indefinitely.
+    runTimeoutMs: clamp(int(process.env.RUN_TIMEOUT_MS, 900_000), 60_000, 3_600_000),
   },
 
   // MongoDB is the only storage driver — see db/index.js. There is no file

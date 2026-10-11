@@ -165,6 +165,7 @@ function ResearchApp() {
             audit={audit}
             sources={sources}
             typeLabel={activeTypeLabel}
+            stopped={research.stopped}
           />
         </div>
 

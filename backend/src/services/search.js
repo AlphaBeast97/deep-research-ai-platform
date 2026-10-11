@@ -22,18 +22,53 @@ const requireClient = () => {
 }
 
 /**
+ * The Tavily client takes no abort signal, so the call is raced against one:
+ * when the user stops the run we stop waiting immediately rather than letting a
+ * slow search hold the pipeline open. (The underlying request still completes
+ * in the background — it simply stops mattering.)
+ */
+function abortable(promise, signal) {
+  if (!signal) return promise
+
+  const reason = () =>
+    signal.reason instanceof Error
+      ? signal.reason
+      : Object.assign(new Error('The run was stopped.'), { name: 'AbortError' })
+
+  if (signal.aborted) return Promise.reject(reason())
+
+  return new Promise((resolve, reject) => {
+    const onAbort = () => reject(reason())
+    signal.addEventListener('abort', onAbort, { once: true })
+    promise.then(
+      (value) => {
+        signal.removeEventListener('abort', onAbort)
+        resolve(value)
+      },
+      (err) => {
+        signal.removeEventListener('abort', onAbort)
+        reject(err)
+      },
+    )
+  })
+}
+
+/**
  * Run a web search and normalize Tavily's response into a stable shape the
  * agents can rely on. Returns an array of { title, url, snippet, score }.
  */
-export async function webSearch(query, { maxResults, topic = 'general' } = {}) {
+export async function webSearch(query, { maxResults, topic = 'general', signal } = {}) {
   const limit = maxResults ?? config.tavily.maxResults
 
-  const res = await requireClient().search(query, {
-    maxResults: limit,
-    searchDepth: config.research.depth === 'deep' ? 'advanced' : 'basic',
-    topic,
-    includeAnswer: false,
-  })
+  const res = await abortable(
+    requireClient().search(query, {
+      maxResults: limit,
+      searchDepth: config.research.depth === 'deep' ? 'advanced' : 'basic',
+      topic,
+      includeAnswer: false,
+    }),
+    signal,
+  )
 
   return (res.results || []).map((r) => ({
     title: r.title || 'Untitled source',
@@ -52,14 +87,17 @@ export async function webSearch(query, { maxResults, topic = 'general' } = {}) {
  * unreadable pages are simply absent (extract reports them in `failedResults`
  * and we drop them).
  */
-export async function fetchPages(urls) {
+export async function fetchPages(urls, { signal } = {}) {
   const unique = [...new Set(urls)].filter(Boolean)
   if (unique.length === 0) return new Map()
 
-  const res = await requireClient().extract(unique, {
-    extractDepth: config.research.depth === 'deep' ? 'advanced' : 'basic',
-    format: 'markdown',
-  })
+  const res = await abortable(
+    requireClient().extract(unique, {
+      extractDepth: config.research.depth === 'deep' ? 'advanced' : 'basic',
+      format: 'markdown',
+    }),
+    signal,
+  )
 
   const pages = new Map()
   for (const r of res.results || []) {

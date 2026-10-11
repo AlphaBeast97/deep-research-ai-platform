@@ -21,6 +21,10 @@ const numbersIn = (group) =>
     .map((n) => Number.parseInt(n.trim(), 10))
     .filter(Number.isFinite)
 
+/** Markers are removed by swapping in a sentinel, so the tidy-up below can
+ *  collapse the gap around a deletion without touching the rest of the text. */
+const REMOVED = '\u0000'
+
 /**
  * Measure the citation graph of a report.
  *
@@ -61,24 +65,47 @@ export function auditCitations(report, sources) {
 }
 
 /**
+ * The set of source numbers a report actually cites. Used to decide which
+ * sources a reviewer needs in full: see `criticUser`.
+ */
+export function citedIndexes(report) {
+  const cited = new Set()
+  for (const match of String(report || '').matchAll(CITATION_RE)) {
+    for (const n of numbersIn(match[1])) cited.add(n)
+  }
+  return cited
+}
+
+/**
  * Drop citation numbers that do not resolve to a real source. A group such as
  * `[2, 9]` becomes `[2]`; a group with nothing valid left is removed entirely.
  *
- * Fenced blocks (Mermaid diagrams, code samples) are left untouched by the
- * whitespace tidy-up: collapsing runs of spaces is right for prose, but it would
- * reflow a diagram's indentation.
+ * Two things this deliberately does NOT do:
+ *
+ * - It never rewrites text that was not affected by a deletion. An earlier
+ *   version collapsed every run of two spaces in the whole report, which
+ *   silently flattened nested Markdown lists — the tidy-up is now confined to
+ *   the gap a removed marker leaves.
+ * - It never touches fenced blocks (Mermaid diagrams, code samples), where
+ *   indentation is meaning rather than whitespace.
  */
 export function sanitizeCitations(report, validIndexes) {
   const valid = validIndexes instanceof Set ? validIndexes : new Set(validIndexes)
+  const GAP_RE = new RegExp(`[ \\t]*${REMOVED}[ \\t]*`, 'g')
 
   const strip = (text) =>
     text
       .replace(CITATION_RE, (_match, group) => {
         const kept = numbersIn(group).filter((n) => valid.has(n))
-        return kept.length ? `[${kept.join(', ')}]` : ''
+        return kept.length ? `[${kept.join(', ')}]` : REMOVED
       })
-      // Close up the gap a deleted marker leaves behind.
-      .replace(/[ \t]{2,}/g, ' ')
+      // Keep a single space only when a removed marker sat between two words;
+      // otherwise close up entirely ("claim [7]." → "claim.").
+      .replace(GAP_RE, (_match, offset, whole) => {
+        const before = whole[offset - 1] ?? ''
+        const after = whole[offset + _match.length] ?? ''
+        return /\w/.test(before) && /\w/.test(after) ? ' ' : ''
+      })
 
   // `split` keeps each fenced block at an odd index (the pattern is capturing).
   return String(report || '')

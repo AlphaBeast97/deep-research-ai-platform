@@ -8,13 +8,14 @@ import { PLANNER_SYSTEM, plannerUser } from './prompts.js'
  * sub-questions, grouped by theme, plus a working title and a scope statement
  * for the report.
  */
-export async function plan(query) {
+export async function plan(query, { signal } = {}) {
   const max = config.research.maxSubQuestions
   const { data, usage } = await chatJSON({
     system: PLANNER_SYSTEM,
     user: plannerUser(query, max),
     model: config.llm.smartModel,
     temperature: 0.3,
+    signal,
   })
 
   let subQuestions = Array.isArray(data.subQuestions) ? data.subQuestions : []

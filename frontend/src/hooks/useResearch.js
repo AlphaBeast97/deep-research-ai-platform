@@ -15,6 +15,10 @@ const initialState = {
   audit: null,
   record: null,
   error: null,
+  // True when the user stopped the run: what is on screen is a partial result
+  // with no critique or citation audit, and the UI says so instead of passing
+  // it off as a finished report.
+  stopped: false,
 }
 
 /**
@@ -34,7 +38,11 @@ export function useResearch() {
   const stop = useCallback(() => {
     abortRef.current?.abort()
     abortRef.current = null
-    setState((s) => (s.status === 'running' ? { ...s, status: 'done' } : s))
+    setState((s) =>
+      s.status === 'running'
+        ? { ...s, status: 'done', phase: null, statusMessage: '', stopped: true }
+        : s,
+    )
   }, [])
 
   const loadRecord = useCallback((record) => {
@@ -56,6 +64,7 @@ export function useResearch() {
       audit: record.audit ?? null,
       record,
       error: null,
+      stopped: false,
     })
   }, [])
 
@@ -131,7 +140,8 @@ export function useResearch() {
         )
       } catch (err) {
         if (err.name === 'AbortError') {
-          setState((s) => ({ ...s, status: 'done' }))
+          // The user stopped it (the backend aborts the run for the same reason).
+          setState((s) => ({ ...s, status: 'done', phase: null, statusMessage: '', stopped: true }))
           return
         }
         setState((s) => ({ ...s, status: 'error', error: err.message }))

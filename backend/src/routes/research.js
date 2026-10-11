@@ -2,7 +2,9 @@ import { getAuth } from '@clerk/express'
 import { Router } from 'express'
 import { runResearch } from '../agents/orchestrator.js'
 import { REPORT_TYPES } from '../agents/reportTypes.js'
+import config from '../config.js'
 import * as db from '../db/index.js'
+import { isAbortError } from '../llm.js'
 
 const router = Router()
 
@@ -75,18 +77,45 @@ router.post('/stream', async (req, res) => {
     if (!closed) res.write(': ping\n\n')
   }, 15_000)
 
+  // The pipeline is handed a stop switch wired to this connection: when the
+  // client goes away (the user pressed Stop, or closed the tab) the in-flight
+  // model and search calls are aborted instead of spending money for nobody.
+  // Without this the server kept running the whole pipeline to completion and
+  // simply discarded the output.
+  const controller = new AbortController()
+  const runTimeoutMs = config.research.runTimeoutMs
+  const deadline = setTimeout(
+    () =>
+      controller.abort(
+        new Error(`The run exceeded ${Math.round(runTimeoutMs / 60_000)} minutes and was stopped.`),
+      ),
+    runTimeoutMs,
+  )
+
   res.on('close', () => {
     closed = true
     clearInterval(heartbeat)
+    clearTimeout(deadline)
+    if (!controller.signal.aborted) controller.abort(new Error('The client disconnected.'))
   })
 
   try {
-    await runResearch({ query, ownerId: req.userId, reportType, onEvent: send })
+    await runResearch({
+      query,
+      ownerId: req.userId,
+      reportType,
+      onEvent: send,
+      signal: controller.signal,
+    })
   } catch (err) {
-    console.error('[research] pipeline error:', err)
+    // A stop is expected, not an incident: a disconnected client has nowhere to
+    // send anything (send() is a no-op once closed), and the deadline reports
+    // itself through the message below.
+    if (!isAbortError(err)) console.error('[research] pipeline error:', err)
     send({ type: 'error', message: err.message || 'Research failed unexpectedly.' })
   } finally {
     clearInterval(heartbeat)
+    clearTimeout(deadline)
     if (!closed) {
       res.write('event: end\ndata: {}\n\n')
       res.end()
