@@ -11,8 +11,9 @@ Everything below was executed against the real Gemini endpoint and the real Tavi
 the storage driver that existed at the time. No part of this section is inferred.
 
 > **Note:** these measurements predate the auth / MongoDB-only / mock-removal change. The
-> pipeline phases, timings and token counts are unaffected by it, but a line naming
-> `STORAGE=file` or mock mode describes the code as it was when the run was captured.
+> pipeline phases, timings and token counts are unaffected by it, but a line naming the
+> JSON file store or mock mode describes the code as it was when the run was captured —
+> both were deleted afterwards ([ADR-24](decisions.md#adr-24-delete-mock-mode-and-the-file-store)).
 
 ### 15.1 End-to-end live run
 

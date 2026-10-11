@@ -27,6 +27,7 @@ it just lives in another file now, and the links below carry you there.
 | [frontend.md](frontend.md) | Frontend | §13 |
 | [verification.md](verification.md) | Verification, performance and limitations | §15, §19, §20 |
 | [decisions.md](decisions.md) | Decision log (ADRs) | §16 |
+| [deployment.md](deployment.md) | Deployment proposal | §22 |
 
 Every mechanical claim the record makes — cross-file links and anchors, §-numbers,
 ADR numbers, env-var names and their documented defaults, API routes, report types,
@@ -38,11 +39,12 @@ code by `node scripts/check-docs.mjs`, which exits non-zero when any one has dri
 **This file**
 
 - [1. What this is](#1-what-this-is)
-- [2. Goals and explicit non-goals](#2-goals-and-explicit-non-goals)
+- [2. Goals](#2-goals)
 - [3. System context](#3-system-context)
 - [4. The MERN claim, audited](#4-the-mern-claim-audited)
 - [5. Stack choices and why](#5-stack-choices-and-why)
 - [21. Glossary](#21-glossary)
+- [22. Deployment proposal](deployment.md#22-deployment-proposal)
 - [Appendix A — File map](#appendix-a--file-map)
 - [Appendix B — Quick reference](#appendix-b--quick-reference)
 
@@ -94,15 +96,16 @@ that links to a source card, and the report is **audited for citation integrity*
 is returned.
 
 **One sentence of positioning:** *a transparent, self-hostable research assistant that
-works with any LLM provider and degrades gracefully to a demo mode when unconfigured.*
+works with any LLM provider, authenticates its users, and refuses to start rather than
+serve output it cannot ground.*
 
 ---
 
 ---
 
-## 2. Goals and explicit non-goals
+## 2. Goals
 
-### 2.1 Goals (these are the acceptance criteria)
+Each goal is an acceptance criterion with an observable test in the code:
 
 | # | Goal | How it is met | Where |
 |---|---|---|---|
@@ -116,17 +119,6 @@ works with any LLM provider and degrades gracefully to a demo mode when unconfig
 | G8 | Misconfiguration is loud, not silent | startup lists missing keys and `exit(1)` — no mock fallback | `config.js`, `index.js` |
 | G9 | Real database | Mongoose adapter behind a facade; no file fallback | `db/mongoStore.js` |
 | G10 | Real authentication, per-user data | Clerk session → `userId` scopes every read, write and delete | `app.js`, `routes/research.js`, `db/` |
-
-### 2.2 Non-goals (deliberately out of scope)
-
-These are **choices**, not oversights. Each is defended in the decision log.
-
-- ❌ **Not** a multi-tenant SaaS. No auth, no per-user isolation, no billing.
-- ❌ **Not** a fine-tuning or RAG-over-your-own-documents system. It searches the *open web*.
-- ❌ **Not** a provider-agnostic *model* abstraction layer (no LangChain/LlamaIndex). It is
-  provider-agnostic at the **protocol** level instead.
-- ❌ **Not** optimised for sub-second latency. A deep research run legitimately takes tens of seconds.
-- ❌ **Not** horizontally scalable as written. State lives in the process's memory during a run.
 
 ---
 
@@ -345,6 +337,7 @@ docs/                              the architecture record, split by module
   frontend.md                      §13     state machine, components, export, styling
   verification.md                  §15, §19–§20   measured runs, performance, limitations
   decisions.md                     §16     the 25 ADRs
+  deployment.md                    §22     deployment options, recommendation, blueprint
 scripts/
   check-docs.mjs                   fact-checks this record against the code (`node scripts/check-docs.mjs`)
 ```

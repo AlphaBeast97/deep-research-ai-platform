@@ -73,7 +73,7 @@ Each entry: the decision, what was rejected, why, and what it costs.
 
 - **Decision:** ship a JSON file store as default; provide a full Mongo adapter one env var away.
 - **Rejected:** requiring MongoDB to start.
-- **Why:** zero-setup onboarding (goal **G6**). A developer must be able to clone, `npm install`, `npm run dev` and see the product work — no cloud account, no connection string.
+- **Why:** zero-setup onboarding (the goal then numbered **G6** — the current G6 is durable, private persistence). A developer must be able to clone, `npm install`, `npm run dev` and see the product work — no cloud account, no connection string.
 - **Cost:** the "MERN" claim is only true in the configured sense. Fully mitigated by the facade ([ADR-11](#adr-11-storage-facade)). The file store also rewrites the whole document on each save — fine for a single user, not for scale ([§20](verification.md#20-known-limitations-and-honest-gaps)).
 
 ### ADR-10: Fail fast on storage init failure
@@ -118,7 +118,7 @@ Each entry: the decision, what was rejected, why, and what it costs.
 - **Decision:** no authentication.
 - **Rejected:** accounts, sessions, per-user scoping.
 - **Why:** scoped explicitly as a local/single-operator tool. Auth would dominate the codebase and the setup instructions for no benefit to the stated use case.
-- **Cost:** history is global and the API is open. **Do not expose this to the public internet as-is** — stated in [§17](backend.md#17-security--robustness) and [§20](verification.md#20-known-limitations-and-honest-gaps).
+- **Cost:** history was global and the API was open, which is exactly why this entry is superseded: [ADR-23](#adr-23-clerk-auth-with-owner-scoped-reports) makes a session mandatory and scopes every query to its owner. The exposure this entry accepted no longer exists.
 
 ### ADR-16: Automatic mock mode
 

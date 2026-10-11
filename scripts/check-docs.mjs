@@ -29,6 +29,7 @@ const DOC_FILES = [
   'docs/frontend.md',
   'docs/verification.md',
   'docs/decisions.md',
+  'docs/deployment.md',
 ]
 
 const failures = []

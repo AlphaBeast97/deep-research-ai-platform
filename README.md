@@ -9,7 +9,7 @@ against its own sources, **revises** it, and runs a **citation audit** before
 - **M**ongoDB Atlas — the report store; every report is private to its owner
 - **E**xpress + Node backend running the agent pipeline
 - **R**eact (Vite) frontend with a live agent trace, behind **Clerk** auth
-- **N**ode.js 18+
+- **N**ode.js 20.19+ (Vite 8's floor)
 
 > 📐 **Architecture & decision record** — starts at [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 > (what the system is, its goals, its stack, and the file map), then splits by module:

@@ -712,7 +712,7 @@ guessing.** It was added after the incident in [§15.2](verification.md#152-the-
 | **Prompt injection from web pages** | Partial only: the researcher is instructed to extract, not obey, the writer only sees structured findings, and the critic audits for overreach. **Not a hard guarantee.** | `prompts.js`, `critic.js` |
 | **Raw page text leaking into storage or the client** | Full page text lives in a run-scoped `Map` and is never persisted, never put on the SSE stream | `orchestrator.js` |
 | **Unresolvable citations surviving into an export** | The audit removes them before the report is persisted, not merely flags them | `citations.js` (ADR-22) |
-| **Open API** | None — acceptable for local use only (ADR-15) | [§20](verification.md#20-known-limitations-and-honest-gaps) |
+| **A stolen session token** | Grants that user's reports for the token's lifetime and nothing else; Clerk tokens are short-lived JWTs | `app.js`, Clerk ([§20](verification.md#20-known-limitations-and-honest-gaps)) |
 | **Broken stream on client disconnect** | `closed` flag + `AbortController` propagation | `routes/research.js` |
 
 **On prompt injection:** this is the honest weak spot of any web-reading agent. A malicious
