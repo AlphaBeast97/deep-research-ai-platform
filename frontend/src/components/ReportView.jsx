@@ -4,6 +4,7 @@ import Panel, { PanelHead } from './ui/Panel.jsx'
 import Button from './ui/Button.jsx'
 import Badge from './ui/Badge.jsx'
 import Mark from './ui/Mark.jsx'
+import FadeBox from './ui/FadeBox.jsx'
 import { wordCount } from '../lib/format.js'
 import { downloadMarkdown, printReport } from '../lib/export.js'
 import { downloadDocx, rasterizeDiagrams } from '../lib/docx.js'
@@ -32,6 +33,9 @@ export default function ReportView({
   const containerRef = useRef(null)
   const [copied, setCopied] = useState(false)
   const [exporting, setExporting] = useState(false)
+  // Collapsed to a faded preview once the report is finished; forced open
+  // while it is still streaming.
+  const [showAll, setShowAll] = useState(false)
 
   const words = wordCount(report)
 
@@ -184,9 +188,17 @@ export default function ReportView({
         </details>
       )}
 
-      <article className="mt-5" ref={containerRef}>
-        <Markdown>{report}</Markdown>
-      </article>
+      <FadeBox
+        className="mt-5"
+        collapsedHeight={460}
+        expanded={running || showAll}
+        onToggle={running ? undefined : () => setShowAll((v) => !v)}
+        label="Read the full report"
+      >
+        <article ref={containerRef}>
+          <Markdown>{report}</Markdown>
+        </article>
+      </FadeBox>
     </Panel>
   )
 }

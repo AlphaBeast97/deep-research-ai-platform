@@ -1,6 +1,7 @@
-import { useEffect, useState } from 'react'
+import { useState } from 'react'
 import Panel from './ui/Panel.jsx'
 import Badge from './ui/Badge.jsx'
+import FadeBox from './ui/FadeBox.jsx'
 import { cn } from '../lib/cn.js'
 
 const AGENT_META = {
@@ -77,19 +78,22 @@ function StepRow({ step, isLast, running }) {
  * can override either way.
  */
 export default function AgentTrace({ steps, plan, statusMessage, phase, running }) {
-  const [open, setOpen] = useState(running)
-
-  useEffect(() => {
-    setOpen(running)
-  }, [running])
+  // Expanded while a run is in flight and pinned open there; once it settles the
+  // trace becomes a short faded preview the reader can reopen. `open` is derived
+  // from `running` rather than synced to it, so there is no second source of
+  // truth to keep in step.
+  const [expandedByUser, setExpandedByUser] = useState(false)
+  const open = running || expandedByUser
+  const toggle = () => setExpandedByUser((v) => !v)
 
   return (
     <Panel>
       <button
         type="button"
-        onClick={() => setOpen((o) => !o)}
+        onClick={toggle}
+        disabled={running}
         aria-expanded={open}
-        className="flex w-full cursor-pointer items-center justify-between gap-3 text-left"
+        className="flex w-full cursor-pointer items-center justify-between gap-3 text-left disabled:cursor-default"
       >
         <span className="flex flex-wrap items-center gap-2.5">
           <span className="font-display text-[15px] font-semibold tracking-tight text-strong">
@@ -109,12 +113,18 @@ export default function AgentTrace({ steps, plan, statusMessage, phase, running 
               {steps.length} step{steps.length === 1 ? '' : 's'}
             </span>
           )}
-          <Chevron open={open} />
+          {!running && <Chevron open={open} />}
         </span>
       </button>
 
-      {open && (
-        <div className="rise mt-4">
+      <FadeBox
+        className="mt-4"
+        collapsedHeight={168}
+        expanded={open}
+        onToggle={running ? undefined : toggle}
+        label="Show all activity"
+      >
+        <div className="rise">
           {statusMessage && <p className="mb-3.5 text-[13px] text-fg">{statusMessage}</p>}
 
           {plan && (
@@ -170,7 +180,7 @@ export default function AgentTrace({ steps, plan, statusMessage, phase, running 
             </p>
           )}
         </div>
-      )}
+      </FadeBox>
     </Panel>
   )
 }
