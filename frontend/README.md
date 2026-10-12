@@ -1,4 +1,4 @@
-# MAD Researcher — frontend
+# <img src="public/favicon.svg" width="36" alt="" /> MAD Researcher — frontend
 
 React 19 + Vite 8 + Tailwind CSS v4 single-page client for MAD Researcher
 backend. It starts a run over SSE, streams the agent trace and the report as it

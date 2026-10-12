@@ -1,4 +1,4 @@
-# MAD Researcher — Multi-Agent Research
+# <img src="frontend/public/favicon.svg" width="40" alt="" /> MAD Researcher — Multi-Agent Research
 
 MAD Researcher is a MERN-stack platform for deep research. Sign in, ask a question, and a pipeline of
 AI agents **plans** the investigation, **searches the web**, **reads pages in
