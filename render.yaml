@@ -12,7 +12,14 @@
 # empty. If Render had to suffix a service name (it does that when a name is
 # taken), the VITE_API_URL below is the one value that will need correcting.
 #
-# Demo-day knobs (API env, then set back): RESEARCH_MAX_ROUNDS=0, DEEP_FETCH=false.
+# The behaviour block below is mirrored from the project's local backend/.env so
+# the deploy runs exactly as it does in development. Three keys from that file are
+# deliberately NOT here, because they are environment-specific or dead:
+#   PORT          — Render injects it; config.js reads it.
+#   CLIENT_ORIGIN — local dev uses http://localhost:5173; here it is derived.
+#   MOCK_MODE     — deleted with mock mode (ADR-24); config.js never reads it.
+#
+# Demo day: lower RESEARCH_MAX_ROUNDS / RESEARCH_DEPTH here, then set them back.
 
 services:
   # The API. One instance, long responses, health-checked.
@@ -41,6 +48,44 @@ services:
         value: gemini-3.5-flash-lite
       - key: LLM_MODEL_SMART
         value: gemini-3.5-flash-lite
+
+      # ── Behaviour ────────────────────────────────────────────────
+      # Mirrored from the local backend/.env so the deploy runs exactly as it
+      # does in development. Every key here also has a default in config.js;
+      # these are the values this project actually runs with.
+      - key: LLM_JSON_MODE
+        value: "true"
+      - key: LLM_TIMEOUT_MS
+        value: "600000"              # 10 min — wait for a streamed answer's first token
+      - key: LLM_MAX_RETRIES
+        value: "2"
+      - key: LLM_STREAM_IDLE_TIMEOUT_MS
+        value: "180000"              # 3 min between tokens
+      - key: TAVILY_MAX_RESULTS
+        value: "5"
+      - key: MAX_SUBQUESTIONS
+        value: "6"
+      - key: RESEARCH_DEPTH
+        value: deep
+      - key: RESEARCH_CONCURRENCY
+        value: "6"                   # all six sub-questions at once
+      - key: RUN_TIMEOUT_MS
+        value: "1200000"             # 20 min ceiling on one run
+      - key: RESEARCH_MAX_ROUNDS
+        value: "2"
+      - key: COVERAGE_FLOOR
+        value: "60"
+      - key: MAX_FOLLOWUP_QUERIES
+        value: "2"
+      - key: DEEP_FETCH
+        value: "true"
+      - key: DEEP_FETCH_SOURCES
+        value: "3"
+      - key: RESEARCH_CRITIQUE
+        value: "true"
+      - key: CRITIC_FULL_TEXT_SOURCES
+        value: "16"
+
       # CORS requires the SPA's origin *exactly*, character for character. Rather
       # than hardcoding it (and having it drift whenever a service is renamed),
       # pull it from the static site's own URL. If it reads empty after the first
