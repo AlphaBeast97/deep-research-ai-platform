@@ -313,6 +313,9 @@
 .fade-box__content {
   overflow: hidden;
 }
+.fade-box__content--anim {
+  transition: max-height 0.5s cubic-bezier(0.22, 0.61, 0.36, 1);
+}
 
 .fade-box__veil {
   position: absolute;
@@ -330,6 +333,11 @@
   backdrop-filter: blur(3px);
   -webkit-mask-image: linear-gradient(to bottom, transparent, #000 62%);
   mask-image: linear-gradient(to bottom, transparent, #000 62%);
+  transition: opacity 0.5s ease;
+}
+.fade-box__veil--hidden {
+  opacity: 0;
+  pointer-events: none;
 }
 
 .fade-box__label {

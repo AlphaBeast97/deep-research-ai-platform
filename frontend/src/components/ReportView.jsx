@@ -205,6 +205,7 @@ export default function ReportView({
         className="mt-5"
         collapsedHeight={460}
         expanded={expandedByUser ?? running}
+        animate={!running}
         onToggle={() => setExpandedByUser(!(expandedByUser ?? running))}
         label="Read the full report"
       >

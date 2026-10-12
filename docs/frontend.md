@@ -276,7 +276,11 @@ report — each end in a `FadeBox`: the block is clipped, its lower edge is blur
 the panel, and a pill inside that band expands it. The open state is *derived*
 (`expandedByUser ?? running`) rather than synced to `running` in an effect, so the reader can fold
 either one up mid-run and there is no second source of truth to keep in step. Collapsed content is
-marked `inert`, keeping its links and citation chips out of the tab order.
+marked `inert`, keeping its links and citation chips out of the tab order. Expand and collapse
+**animate**: `max-height` is driven to the measured content height (never `auto`, which cannot
+transition) and the veil fades with it. While the content is still streaming, `animate={!running}`
+switches the transition off, so the box tracks new tokens instead of chasing them a half-second
+behind.
 - **A run says what it is doing.** `StatusPill` names the step the agents are on — the last trace
 step ("Researcher · Searching the web"), not the raw progress line — with a pulsing dot, a slow
 shimmer and a cross-fade when the step changes. It is a `role="status"` live region.

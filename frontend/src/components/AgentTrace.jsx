@@ -118,6 +118,7 @@ export default function AgentTrace({ steps, plan, statusMessage, phase, running 
         className="mt-4"
         collapsedHeight={168}
         expanded={open}
+        animate={!running}
         onToggle={toggle}
         label="Show all activity"
       >
