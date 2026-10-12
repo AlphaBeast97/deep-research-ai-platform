@@ -1,4 +1,5 @@
-import Panel, { PanelHead } from './ui/Panel.jsx'
+import { useEffect, useState } from 'react'
+import Panel from './ui/Panel.jsx'
 import Badge from './ui/Badge.jsx'
 import { cn } from '../lib/cn.js'
 
@@ -20,6 +21,23 @@ const PHASE_LABEL = {
   audit: 'Verifying citations',
 }
 
+function Chevron({ open }) {
+  return (
+    <svg
+      viewBox="0 0 24 24"
+      className={cn('h-4 w-4 transition-transform duration-200', open && 'rotate-180')}
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <path d="M6 9l6 6 6-6" />
+    </svg>
+  )
+}
+
 function StepRow({ step, isLast, running }) {
   const meta = AGENT_META[step.agent] ?? { ...FALLBACK, label: step.agent }
   const pending = step.status === 'start' && isLast && running
@@ -27,23 +45,21 @@ function StepRow({ step, isLast, running }) {
   return (
     <li
       className={cn(
-        'relative flex gap-3 pb-4',
+        'relative flex gap-3 pb-4 last:pb-0',
         !isLast &&
-          "before:absolute before:top-4 before:bottom-0 before:left-[5px] before:w-px before:bg-line before:content-['']",
+          "before:absolute before:top-4 before:bottom-0 before:left-[4px] before:w-px before:bg-line before:content-['']",
       )}
     >
       <span
         className={cn(
-          'mt-[5px] h-[11px] w-[11px] flex-none rounded-full',
+          'mt-[5px] h-[9px] w-[9px] flex-none rounded-full',
           meta.dot,
           pending && 'animate-[pulse_1.3s_ease-in-out_infinite]',
         )}
       />
       <div className="min-w-0">
-        <div className="flex flex-wrap items-baseline gap-2">
-          <span className={cn('text-[11px] font-bold tracking-[0.06em] uppercase', meta.text)}>
-            {meta.label}
-          </span>
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5">
+          <span className={cn('text-[11.5px] font-semibold', meta.text)}>{meta.label}</span>
           <span className="text-[13.5px] text-strong">{step.label}</span>
         </div>
         {step.detail && (
@@ -54,74 +70,106 @@ function StepRow({ step, isLast, running }) {
   )
 }
 
+/**
+ * The live agent trace. It expands while a run is in flight — so the work is
+ * watchable — and folds itself away once the run settles, so the finished
+ * report is not buried under a long log. The header is a button, so the reader
+ * can override either way.
+ */
 export default function AgentTrace({ steps, plan, statusMessage, phase, running }) {
+  const [open, setOpen] = useState(running)
+
+  useEffect(() => {
+    setOpen(running)
+  }, [running])
+
   return (
     <Panel>
-      <PanelHead title="Agent activity">
-        {running && phase && (
-          <Badge tone="neutral">{PHASE_LABEL[phase] ?? phase}</Badge>
-        )}
-        {running && (
-          <Badge tone="accent" className="border-transparent bg-transparent px-0">
-            <span className="h-[7px] w-[7px] rounded-full bg-accent-2 animate-[pulse_1.3s_ease-in-out_infinite]" />
-            live
-          </Badge>
-        )}
-      </PanelHead>
+      <button
+        type="button"
+        onClick={() => setOpen((o) => !o)}
+        aria-expanded={open}
+        className="flex w-full cursor-pointer items-center justify-between gap-3 text-left"
+      >
+        <span className="flex flex-wrap items-center gap-2.5">
+          <span className="font-display text-[15px] font-semibold tracking-tight text-strong">
+            Agent activity
+          </span>
+          {running && phase && <Badge tone="neutral">{PHASE_LABEL[phase] ?? phase}</Badge>}
+          {running && (
+            <Badge tone="accent">
+              <span className="h-[6px] w-[6px] rounded-full bg-accent animate-[pulse_1.3s_ease-in-out_infinite]" />
+              live
+            </Badge>
+          )}
+        </span>
+        <span className="flex flex-none items-center gap-2 text-[12.5px] text-muted">
+          {steps.length > 0 && (
+            <span>
+              {steps.length} step{steps.length === 1 ? '' : 's'}
+            </span>
+          )}
+          <Chevron open={open} />
+        </span>
+      </button>
 
-      {statusMessage && <p className="mb-3.5 text-[13px]">{statusMessage}</p>}
+      {open && (
+        <div className="rise mt-4">
+          {statusMessage && <p className="mb-3.5 text-[13px] text-fg">{statusMessage}</p>}
 
-      {plan && (
-        <div className="mb-4 rounded-control border border-dashed border-line bg-inset px-[15px] py-3">
-          <p className="mb-2.5 text-[13px] font-semibold text-strong">{plan.title}</p>
-          {plan.scope && <p className="mb-2.5 text-[12px] text-muted italic">{plan.scope}</p>}
-          <ol className="flex list-none flex-col gap-1.5 p-0">
-            {plan.subQuestions.map((q, i) => {
-              const done = steps.some(
-                (s) =>
-                  s.agent === 'researcher' &&
-                  s.label === 'Searching the web' &&
-                  s.detail === q.question,
-              )
-              return (
-                <li
-                  key={i}
-                  className={cn(
-                    'flex items-start gap-2.5 text-[13px]',
-                    done ? 'text-fg' : 'text-muted',
-                  )}
-                >
-                  <span
-                    className={cn(
-                      'mt-px grid h-[19px] w-[19px] flex-none place-items-center rounded-full border text-[11px] font-bold',
-                      done ? 'border-ok text-ok' : 'border-line text-muted',
-                    )}
-                  >
-                    {done ? '✓' : i + 1}
-                  </span>
-                  <span className="min-w-0">
-                    {q.question}
-                    {q.theme && (
-                      <span className="ml-1.5 text-muted/70">· {q.theme}</span>
-                    )}
-                  </span>
-                </li>
-              )
-            })}
+          {plan && (
+            <div className="mb-4 rounded-control border border-dashed border-line bg-inset px-4 py-3.5">
+              <p className="font-display text-[14px] font-semibold text-strong">{plan.title}</p>
+              {plan.scope && (
+                <p className="mt-1 mb-2.5 text-[12.5px] text-muted italic">{plan.scope}</p>
+              )}
+              <ol className="flex list-none flex-col gap-1.5 p-0">
+                {plan.subQuestions.map((q, i) => {
+                  const done = steps.some(
+                    (s) =>
+                      s.agent === 'researcher' &&
+                      s.label === 'Searching the web' &&
+                      s.detail === q.question,
+                  )
+                  return (
+                    <li
+                      key={i}
+                      className={cn(
+                        'flex items-start gap-2.5 text-[13px]',
+                        done ? 'text-fg' : 'text-muted',
+                      )}
+                    >
+                      <span
+                        className={cn(
+                          'mt-px grid h-[19px] w-[19px] flex-none place-items-center rounded-full border text-[11px] font-bold',
+                          done ? 'border-ok text-ok' : 'border-line text-muted',
+                        )}
+                      >
+                        {done ? '✓' : i + 1}
+                      </span>
+                      <span className="min-w-0">
+                        {q.question}
+                        {q.theme && <span className="ml-1.5 text-muted/70">· {q.theme}</span>}
+                      </span>
+                    </li>
+                  )
+                })}
+              </ol>
+            </div>
+          )}
+
+          <ol className="relative list-none p-0">
+            {steps.map((step, i) => (
+              <StepRow key={i} step={step} isLast={i === steps.length - 1} running={running} />
+            ))}
           </ol>
+
+          {steps.length === 0 && !plan && (
+            <p className="text-[13px] text-muted italic">
+              Waiting for the planner to decompose your question…
+            </p>
+          )}
         </div>
-      )}
-
-      <ol className="relative list-none p-0">
-        {steps.map((step, i) => (
-          <StepRow key={i} step={step} isLast={i === steps.length - 1} running={running} />
-        ))}
-      </ol>
-
-      {steps.length === 0 && !plan && (
-        <p className="text-[13px] text-muted italic">
-          Waiting for the planner to decompose your question…
-        </p>
       )}
     </Panel>
   )
