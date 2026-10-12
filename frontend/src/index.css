@@ -358,6 +358,32 @@
   box-shadow: none;
 }
 
+/* A dashed rail between phase cards, so the six read as one sequence; it is
+   hidden at the end of each responsive row. */
+.phase-card::after {
+  content: '';
+  position: absolute;
+  top: 50%;
+  right: -7px;
+  width: 14px;
+  border-top: 1px dashed var(--c-line);
+}
+@media (max-width: 639px) {
+  .phase-card::after {
+    display: none;
+  }
+}
+@media (min-width: 640px) and (max-width: 1023px) {
+  .phase-card:nth-child(2n)::after {
+    display: none;
+  }
+}
+@media (min-width: 1024px) {
+  .phase-card:nth-child(3n)::after {
+    display: none;
+  }
+}
+
 /* ──────────────────────────────────────────────────────────────
    The centred status bubble shown while a run is in flight: a
    pulsing dot, a slow shimmer across the pill, and a cross-fading

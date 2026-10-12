@@ -3,26 +3,98 @@ import Button from './ui/Button.jsx'
 import Mark from './ui/Mark.jsx'
 
 const PIPELINE = [
-  { name: 'Plan', tone: 'text-planner', detail: 'Breaks the topic into searchable sub-questions.' },
-  { name: 'Research', tone: 'text-researcher', detail: 'Searches, reads whole pages, fills its own gaps.' },
-  { name: 'Draft', tone: 'text-writer', detail: 'Streams a cited report as it writes it.' },
-  { name: 'Critique', tone: 'text-critic', detail: 'Audits the draft against its own sources.' },
-  { name: 'Revise', tone: 'text-writer', detail: 'Applies every critique finding it can.' },
-  { name: 'Audit', tone: 'text-ok', detail: 'Checks that each citation resolves.' },
+  {
+    name: 'Plan',
+    tone: 'text-planner',
+    bar: 'bg-planner',
+    badge: 'bg-planner/12 text-planner',
+    detail: 'Breaks the topic into searchable sub-questions.',
+  },
+  {
+    name: 'Research',
+    tone: 'text-researcher',
+    bar: 'bg-researcher',
+    badge: 'bg-researcher/12 text-researcher',
+    detail: 'Searches, reads whole pages, fills its own gaps.',
+  },
+  {
+    name: 'Draft',
+    tone: 'text-writer',
+    bar: 'bg-writer',
+    badge: 'bg-writer/12 text-writer',
+    detail: 'Streams a cited report as it writes it.',
+  },
+  {
+    name: 'Critique',
+    tone: 'text-critic',
+    bar: 'bg-critic',
+    badge: 'bg-critic/12 text-critic',
+    detail: 'Audits the draft against its own sources.',
+  },
+  {
+    name: 'Revise',
+    tone: 'text-writer',
+    bar: 'bg-writer',
+    badge: 'bg-writer/12 text-writer',
+    detail: 'Applies every critique finding it can.',
+  },
+  {
+    name: 'Audit',
+    tone: 'text-ok',
+    bar: 'bg-ok',
+    badge: 'bg-ok/12 text-ok',
+    detail: 'Checks that each citation resolves.',
+  },
 ]
+
+const icon = (paths) => (
+  <svg
+    viewBox="0 0 24 24"
+    className="h-5 w-5"
+    fill="none"
+    stroke="currentColor"
+    strokeWidth="1.7"
+    strokeLinecap="round"
+    strokeLinejoin="round"
+    aria-hidden="true"
+  >
+    {paths}
+  </svg>
+)
 
 const HIGHLIGHTS = [
   {
     title: 'Grounded, cited claims',
     body: 'Every assertion carries a numbered source. Unsupported citations are removed before the report is saved — a broken reference never reaches you.',
+    icon: icon(
+      <>
+        <path d="M9 4h6l4 4v12a1 1 0 0 1-1 1H6a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1Z" />
+        <path d="M14 4v5h5" />
+        <path d="M8.5 14.5l1.6 1.6L13 12.6" />
+      </>,
+    ),
   },
   {
     title: 'Private to your account',
     body: 'Reports belong to the account that ran them. Your history is yours alone, and nothing is shared unless you share it yourself.',
+    icon: icon(
+      <>
+        <rect x="4.5" y="10.5" width="15" height="9.5" rx="2" />
+        <path d="M8 10.5V8a4 4 0 0 1 8 0v2.5" />
+        <path d="M12 14v2.5" />
+      </>,
+    ),
   },
   {
     title: 'Exports you can circulate',
     body: 'Send it as Markdown, Word, or PDF. Every format carries its sources, so a reader can always trace a claim back to where it came from.',
+    icon: icon(
+      <>
+        <path d="M12 4v11" />
+        <path d="M8 11.5 12 15.5l4-4" />
+        <path d="M5 19h14" />
+      </>,
+    ),
   },
 ]
 
@@ -66,8 +138,12 @@ export default function Landing() {
       </header>
 
       {/* ── Hero: left-hand pitch, right-hand example note ─────── */}
-      <section className="grid items-center gap-10 pt-8 sm:pt-14 lg:grid-cols-[minmax(0,1fr)_390px]">
-        <div>
+      <section className="relative grid items-center gap-10 pt-8 sm:pt-14 lg:grid-cols-[minmax(0,1fr)_390px]">
+        <div
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-16 left-[26%] h-72 w-72 -translate-x-1/2 rounded-full bg-accent/12 blur-3xl"
+        />
+        <div className="relative">
           <h1 className="font-display text-[40px] leading-[1.04] tracking-tight text-strong sm:text-[56px]">
             Research that shows its work.
           </h1>
@@ -127,17 +203,32 @@ export default function Landing() {
         {HIGHLIGHTS.map((item) => (
           <div
             key={item.title}
-            className="rounded-panel border border-line bg-surface p-5 shadow-panel"
+            className="group relative overflow-hidden rounded-panel border border-line bg-surface p-5 shadow-panel transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-1 hover:border-accent/40"
           >
-            <h2 className="font-display text-[17px] text-strong">{item.title}</h2>
-            <p className="mt-2 text-[13.5px] leading-[1.6] text-muted">{item.body}</p>
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-accent/70 via-highlight/60 to-transparent"
+            />
+            <span
+              aria-hidden="true"
+              className="pointer-events-none absolute -top-10 -right-10 h-28 w-28 rounded-full bg-accent/12 opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-100"
+            />
+            <span className="relative inline-grid h-10 w-10 place-items-center rounded-control border border-line bg-surface-2 text-accent">
+              {item.icon}
+            </span>
+            <h2 className="relative mt-3.5 font-display text-[17px] text-strong">{item.title}</h2>
+            <p className="relative mt-2 text-[13.5px] leading-[1.6] text-muted">{item.body}</p>
           </div>
         ))}
       </section>
 
       {/* ── Pipeline (a real sequence, so it is numbered) ─────── */}
-      <section className="mt-16 rounded-panel border border-line bg-surface p-6 shadow-panel sm:p-8">
-        <div className="flex flex-wrap items-baseline justify-between gap-2">
+      <section className="relative mt-16 overflow-hidden rounded-panel border border-line bg-surface p-6 shadow-panel sm:p-8">
+        <span
+          aria-hidden="true"
+          className="pointer-events-none absolute -top-16 right-0 h-56 w-56 rounded-full bg-highlight/10 blur-3xl"
+        />
+        <div className="relative flex flex-wrap items-baseline justify-between gap-2">
           <h2 className="font-display text-[22px] tracking-tight text-strong">
             Six phases, one question
           </h2>
@@ -146,23 +237,32 @@ export default function Landing() {
           </span>
         </div>
 
-        <ol className="mt-6 grid list-none gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3">
+        <ol className="relative mt-6 grid list-none gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3">
           {PIPELINE.map((phase, index) => (
-            <li key={phase.name} className="rounded-control border border-line-soft bg-inset p-4">
-              <div className="flex items-center gap-2.5">
-                <span className="grid h-[22px] w-[22px] flex-none place-items-center rounded-full bg-surface-2 text-[11px] font-bold text-muted">
+            <li
+              key={phase.name}
+              className="phase-card group relative rounded-control border border-line-soft bg-inset p-4 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-accent/40"
+            >
+              <span
+                aria-hidden="true"
+                className={`absolute top-3.5 bottom-3.5 left-0 w-[3px] rounded-r-full ${phase.bar}`}
+              />
+              <div className="flex items-center gap-2.5 pl-1.5">
+                <span
+                  className={`grid h-[22px] w-[22px] flex-none place-items-center rounded-full text-[11px] font-bold ${phase.badge}`}
+                >
                   {index + 1}
                 </span>
                 <span className={`font-display text-[15px] font-semibold ${phase.tone}`}>
                   {phase.name}
                 </span>
               </div>
-              <p className="mt-2 text-[13px] leading-[1.55] text-muted">{phase.detail}</p>
+              <p className="mt-2 pl-1.5 text-[13px] leading-[1.55] text-muted">{phase.detail}</p>
             </li>
           ))}
         </ol>
 
-        <p className="mt-6 border-t border-line-soft pt-5 text-[14px] leading-[1.6] text-muted">
+        <p className="relative mt-6 border-t border-line-soft pt-5 text-[14px] leading-[1.6] text-muted">
           The researcher doesn&apos;t stop at the first page of results. When its own coverage of a
           sub-question is thin, it proposes new searches and goes back — then the critic reads the
           finished draft the way a sceptical editor would, and the writer fixes what it finds.
