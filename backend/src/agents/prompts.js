@@ -186,7 +186,12 @@ export const ANALYST_SPEC = `Structure (GitHub-flavoured Markdown):
 7. "## Confidence & evidence quality" — for the major claims, say how strong the
    evidence is and why (primary vs secondary, corroborated vs single-source,
    recent vs dated). Use the per-finding confidence the researchers recorded.
-8. "## Limitations & open questions" — what this research could not establish.`
+8. "## Limitations & open questions" — what this research could not establish.
+
+Length: 2,400–3,200 words. The section list above is a skeleton to fill with
+substance, not a summary to pad out: each analytical section should run roughly
+300–450 words, and every paragraph should carry a figure, date, name or
+comparison taken from the sources.`
 
 export const BRIEF_SPEC = `Structure (GitHub-flavoured Markdown):
 1. A single H1 title.
@@ -196,7 +201,8 @@ export const BRIEF_SPEC = `Structure (GitHub-flavoured Markdown):
 4. "## What to watch" — 2-4 bullets naming the signals that would change the picture.
 5. At most one small table, and only if it carries the comparison better than prose.
 6. "## Limitations" — 2-3 bullets on what this brief could not establish.
-Keep the whole brief under about 600 words. There is no methodology section.`
+Length: 400–600 words — a one-pager, not a single paragraph. There is no
+methodology section.`
 
 export const COMPARISON_SPEC = `Structure (GitHub-flavoured Markdown):
 1. A single H1 title.
@@ -210,7 +216,11 @@ export const COMPARISON_SPEC = `Structure (GitHub-flavoured Markdown):
 5. "## Where the evidence conflicts" — the dimensions where sources disagree.
 6. "## Verdict" — which option leads on which dimension and on what basis. Do not
    declare an overall winner the sources do not support; say so if they do not.
-7. "## Confidence & limitations" — how strong the comparison is and what is missing.`
+7. "## Confidence & limitations" — how strong the comparison is and what is missing.
+
+Length: 2,000–2,600 words. The table summarises the argument; it does not
+replace it. Every dimension section must explain how the options differ and why,
+with the figures the sources give.`
 
 export const TIMELINE_SPEC = `Structure (GitHub-flavoured Markdown):
 1. A single H1 title.
@@ -223,7 +233,10 @@ export const TIMELINE_SPEC = `Structure (GitHub-flavoured Markdown):
 5. A single Mermaid "timeline" diagram of the key milestones.
 6. "## Where the evidence conflicts" — dates or attributions the sources dispute.
 7. "## What's next" — the indicated trajectory, with the uncertainty stated.
-8. "## Confidence & limitations"`
+8. "## Confidence & limitations"
+
+Length: 1,600–2,200 words. The dated entries stay short — the length belongs to
+the drivers and the analysis of why the sequence went this way.`
 
 export const RISK_SPEC = `Structure (GitHub-flavoured Markdown):
 1. A single H1 title.
@@ -236,7 +249,11 @@ export const RISK_SPEC = `Structure (GitHub-flavoured Markdown):
    cause harm, with citations.
 5. "## Unknowns & blind spots" — risks the sources could not quantify or refused
    to discuss, and what that silence might mean.
-6. "## Confidence & limitations"`
+6. "## Confidence & limitations"
+
+Length: 1,800–2,400 words. The register is the index to the report, not the
+report: each material risk gets its own section explaining how the harm would
+actually occur.`
 
 export const EVIDENCE_SPEC = `Structure (GitHub-flavoured Markdown):
 1. A single H1 title.
@@ -249,10 +266,28 @@ export const EVIDENCE_SPEC = `Structure (GitHub-flavoured Markdown):
 6. "## Gaps in the evidence" — questions no source in the set answers.
 7. A table of the key sources with their position and the strength of their
    evidence (primary vs secondary, corroborated vs single-source, date).
-8. "## Confidence & limitations"`
+8. "## Confidence & limitations"
+
+Length: 2,000–2,600 words. Spend it on the evidence itself: which claims hold,
+on what basis, and what would change the assessment.`
 
 // Rules shared by every report type, appended to the chosen structure.
-const SHARED_RULES = `Detail requirements:
+const SHARED_RULES = `Length & depth:
+- The format above states a word range. It is a floor, not a suggestion: a draft
+  that lands materially under it has summarised the findings instead of
+  reporting them, and it will be sent back to be expanded.
+- Length comes from depth, never from volume. For each finding give the
+  mechanism, the magnitude, the comparison, the caveat, and what follows from
+  it. Numbers, dates, named entities and units are depth; adjectives,
+  scene-setting and restatement are filler.
+- Use the material you were given. A gathered finding that never reaches the
+  report is either missing content or a genuine conflict — the second belongs in
+  the section that handles conflicts, not in the bin.
+- Never pad, never repeat yourself, and never invent detail to reach a length.
+  If the evidence genuinely cannot support the range, write the report it does
+  support and say so where limitations are discussed.
+
+Detail requirements:
 - Prefer the concrete over the general. "Costs are falling" is worthless;
   "cell costs fell from ~$140/kWh to ~$100/kWh between 2023 and 2025 [1]" is a
   finding. Carry over numbers, dates, named entities, specs and units.
@@ -341,7 +376,10 @@ Audit for exactly these failure modes:
 5. MISSING ANGLE — an important facet of the topic, supported by the gathered
    findings, that the draft simply ignores.
 6. STRUCTURE — a missing required section, weak organisation, an incorrect or
-   missing diagram, or a place where a table would carry the comparison better.
+   missing diagram, a place where a table would carry the comparison better, or a
+   report that lands materially under the length range its format states: name
+   the sections that are too thin, and what the gathered findings could add to
+   them.
 
 Rules:
 - Be specific and adversarial. Quote or paraphrase the offending text.
@@ -440,6 +478,9 @@ Rules:
   Preserve the verified numbers, structure and citations from the draft.
 - Do not mention the critique, the revision process, or that you are an AI. The
   output must read as a finished report.
+- Revising is not an excuse to shorten: the revision must still meet the length
+  range in the specification, so expand a thin section with material from the
+  provided findings rather than trimming the report down.
 
 ${spec}
 

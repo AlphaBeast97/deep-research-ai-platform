@@ -40,7 +40,7 @@ pie showData title Wall-clock time by phase (total ≈ 133 s)
 | **The critic found real problems and they were fixed** | verdict `solid` **with 2 issues**; one was an uncited fast-charging claim in a comparison table, and the shipped table carries `Not established in sources` for that cell — the revision applied it |
 | **Gap-filling fires** | 5 base searches + **8 follow-up searches**, **4 gap rounds**, **9 extractions** for 5 sub-questions |
 | **Full pages are read, not just snippets** | **26 pages** fetched in full across the run (`Full pages read` steps) |
-| **The report is a long-form analyst document** | 1,491 words, 11 `##` sections, 2 `###`, a comparison table, and all five required sections present (`missingSections: []`) |
+| **The report is a long-form analyst document** | 1,491 words, 11 `##` sections, 2 `###`, a comparison table, and all five required sections present (`missingSections: []`) — measured *before* the per-format length ranges were added; see [§20](#20-known-limitations-and-honest-gaps) row 18 |
 | **Diagrams still render** | 1 ```` ```mermaid ```` block, parsed clean with the real **Mermaid v12** parser |
 | **Citations are inline and audited** | 72 references, 23 of 48 sources cited (coverage 48 %), `invalid: []`, `invalidRemoved: 0` |
 | Streaming works on Gemini | 205 `token` deltas across the draft and the revision |
@@ -261,5 +261,7 @@ Ordered by how much they'd matter if this became more than a local tool.
 | 15 | **The critic's full-text expansion is capped** (`CRITIC_FULL_TEXT_SOURCES`, default 8) | Beyond the cap it reviews snippets, so a miscitation whose support lives in the body of an uncapped source can still pass | Raise the cap, or expand exactly the sources behind the claims flagged as `overreach` in a second pass |
 | 16 | **A stopped run is not persisted** | Stop a run and the partial draft is on screen but absent from history; the work is unrecoverable | Persist a `status: "cancelled"` record with the partial report and mark it in the library |
 | 17 | **One retry is the whole JSON-repair strategy** | A provider that consistently answers in prose (rather than JSON) fails the run twice and gives up | Prompt-level enforcement is already the primary defence; a stricter repair turn or a schema validator would catch the rest |
+| 18 | **The length ranges are prompt-level and unverified live** | Each format's word range is a string in `prompts.js` — the only mechanism, and one a model can ignore. The lengths measured in [§15.1](#151-end-to-end-live-run) (1,491 words analyst, 1,165 risk, 561 brief) predate the ranges, so nothing in this record shows a run that hit one | A live run against a real provider with the new prompts; if the number keeps being ignored, enforce it in code (count the words, then one expansion pass) rather than in prose |
+| 19 | **The PDF inherits the browser's print header and footer** | A saved PDF shows the page title and the page URL at the top of the sheet. Both are emitted by the browser's own print dialog: the PDF path writes the document and calls `win.print()` ([§13.5](frontend.md#135-export)), so no change to the export code removes them | Deselect "Headers and footers" in the print dialog — a per-machine setting; making it disappear unconditionally means generating the PDF in code rather than printing |
 
 ---

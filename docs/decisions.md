@@ -231,8 +231,9 @@ Each entry: the decision, what was rejected, why, and what it costs.
 
 - **Decision:** the user picks the deliverable before running — analyst report, executive
   brief, comparison, timeline, risk assessment, or evidence review. Each format is a distinct
-  section structure *and* a distinct writing stance, and it drives the writer and revisor
-  prompts for the run. The choice is stored on the report so it can be labelled on reload.
+  section structure, a distinct writing stance and a distinct **length range**, and it drives
+  the writer, revisor and critic prompts for the run. The choice is stored on the report so it
+  can be labelled on reload.
 - **Rejected:** one universal report with a "length" or "tone" knob; and letting the user
   supply a free-form format prompt.
 - **Why:** the questions people actually ask are not all the same shape. "Which of these two
@@ -244,14 +245,15 @@ Each entry: the decision, what was rejected, why, and what it costs.
   impossible to reason about and hand unbounded text a privileged position in the prompt.
 - **How it holds together:** `prompts.js` stays string-only — the per-format structures are
   plain exports, and the writer/revisor system prompts became functions that interpolate one.
-  The shared detail/citation/diagram rules are factored into `SHARED_RULES` so every format
+  The shared length, detail, citation and diagram rules are factored into `SHARED_RULES` so
+  every format
   inherits them; a format cannot silently drop the citation rules. Only `{id,label,blurb}`
   crosses to the browser — the prompt text never leaves the server. An unknown or absent id
   resolves to the default rather than reaching a prompt as `undefined`, and an explicitly
   invalid id in the API body is rejected with `400`.
-- **Cost:** six structures to keep in sync with what the critic expects, and the critic's
-  `structure` check remains format-agnostic — it can tell that a required section is missing,
-  but it does not know which sections the *chosen* format requires. Noted in
-  [§20](verification.md#20-known-limitations-and-honest-gaps).
+- **Cost:** six structures to keep in sync with what the critic expects. That cost is bounded
+  by the same single-string rule: the critic is told which format was requested and audits
+  against *that* spec, so its `structure` check — including the length range it now enforces —
+  moves whenever the format moves ([§8.5](agents.md#85-the-critic-prompt)).
 
 ---
