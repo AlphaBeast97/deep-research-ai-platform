@@ -57,6 +57,16 @@ function Citation({ n }) {
 }
 
 const components = {
+  // Wide report tables scroll inside their own card instead of pushing the
+  // whole page sideways on a narrow screen.
+  table({ children, ...props }) {
+    return (
+      <div className="table-scroll">
+        <table {...props}>{children}</table>
+      </div>
+    )
+  },
+
   a({ href, children, ...props }) {
     const match = typeof href === 'string' && href.match(/^#source-(\d+)$/)
     if (match) {

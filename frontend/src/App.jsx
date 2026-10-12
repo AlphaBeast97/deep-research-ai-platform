@@ -145,7 +145,7 @@ function ResearchApp() {
         </div>
       )}
 
-      <main className="grid items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
+      <main className="grid grid-cols-[minmax(0,1fr)] items-start gap-5 lg:grid-cols-[minmax(0,1fr)_360px]">
         <div className="flex min-w-0 flex-col gap-5">
           {hasRun && (
             <AgentTrace

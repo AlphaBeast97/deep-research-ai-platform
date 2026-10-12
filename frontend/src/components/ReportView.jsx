@@ -3,6 +3,7 @@ import Markdown from './Markdown.jsx'
 import Panel, { PanelHead } from './ui/Panel.jsx'
 import Button from './ui/Button.jsx'
 import Badge from './ui/Badge.jsx'
+import Mark from './ui/Mark.jsx'
 import { wordCount } from '../lib/format.js'
 import { downloadMarkdown, printReport } from '../lib/export.js'
 import { downloadDocx, rasterizeDiagrams } from '../lib/docx.js'
@@ -71,16 +72,16 @@ export default function ReportView({
 
   if (!report) {
     return (
-      <Panel className="grid min-h-[380px] place-items-center">
-        <div className="max-w-[420px] text-center text-muted">
-          <div className="mb-3 text-[34px] text-accent">✦</div>
-          <h2 className="mb-1.5 text-[17px]">
+      <Panel className="grid min-h-[340px] place-items-center">
+        <div className="max-w-[440px] text-center">
+          <Mark className="mx-auto h-12 w-12" />
+          <h2 className="mt-4 font-display text-[21px] tracking-tight text-strong">
             {running ? 'Researching…' : 'Your report will appear here'}
           </h2>
-          <p className="text-[13.5px]">
+          <p className="mt-2 text-[14px] leading-[1.6] text-muted">
             {running
               ? (PHASE_LABEL[phase] ?? 'The writer agent streams the final report as it composes it.')
-              : 'Enter a topic above and the agent pipeline will plan, research, self-critique, and write a cited report.'}
+              : 'Ask a question above and the agent pipeline will plan, research, self-critique, and write a cited report.'}
           </p>
         </div>
       </Panel>
@@ -88,7 +89,7 @@ export default function ReportView({
   }
 
   return (
-    <Panel>
+    <Panel className="rise">
       <PanelHead title="Report" className="items-start">
         <div className="flex gap-1.5">
           <Button size="sm" onClick={copy}>
@@ -106,8 +107,8 @@ export default function ReportView({
         </div>
       </PanelHead>
 
-      <p className="text-xs text-muted">
-        {words} words
+      <p className="text-[12.5px] text-muted">
+        {words.toLocaleString()} words
         {durationMs ? ` · ${(durationMs / 1000).toFixed(1)}s` : ''}
         {typeLabel ? ` · ${typeLabel}` : ''}
       </p>
@@ -115,15 +116,15 @@ export default function ReportView({
       {/* A stopped run leaves a partial draft with no critique and no citation
           audit — say so, rather than presenting it as a finished report. */}
       {stopped && (
-        <div className="mt-2.5 rounded-control border border-warn/35 bg-warn/10 px-3.5 py-2.5 text-[12.5px] text-warn">
-          <strong>Stopped early.</strong> The critique and citation audit never ran,
-          so nothing below has been verified against its sources yet.
+        <div className="mt-3 rounded-control border border-warn/35 bg-warn/10 px-3.5 py-2.5 text-[12.5px] text-warn">
+          <strong>Stopped early.</strong> The critique and citation audit never ran, so nothing below
+          has been verified against its sources yet.
         </div>
       )}
 
       {/* ── integrity summary ───────────────────────────────── */}
       {(audit || critique) && (
-        <div className="mt-2.5 flex flex-wrap items-center gap-1.5">
+        <div className="mt-3 flex flex-wrap items-center gap-1.5">
           {audit && (
             <Badge tone="neutral">
               {audit.references} citation{audit.references === 1 ? '' : 's'}
@@ -134,9 +135,7 @@ export default function ReportView({
               {audit.citedSourceCount}/{audit.sourceCount} sources cited
             </Badge>
           )}
-          {audit?.uncited?.length > 0 && (
-            <Badge tone="warn">{audit.uncited.length} uncited</Badge>
-          )}
+          {audit?.uncited?.length > 0 && <Badge tone="warn">{audit.uncited.length} uncited</Badge>}
           {audit?.invalidRemoved > 0 && (
             <Badge tone="danger">{audit.invalidRemoved} broken citation removed</Badge>
           )}
@@ -151,30 +150,28 @@ export default function ReportView({
       )}
 
       {critique?.issues?.length > 0 && (
-        <details className="mt-3 rounded-control border border-line bg-inset px-3.5 py-2.5">
+        <details className="mt-3.5 rounded-control border border-line bg-inset px-3.5 py-2.5">
           <summary className="cursor-pointer text-[12.5px] font-semibold text-strong select-none">
             Self-critique · {critique.issues.length} issue
             {critique.issues.length === 1 ? '' : 's'} found before the revision
           </summary>
-          <ul className="mt-2.5 flex list-none flex-col gap-2.5 p-0">
+          <ul className="mt-3 flex list-none flex-col gap-2.5 p-0">
             {critique.issues.map((issue, i) => (
-              <li key={i} className="border-l-2 border-line pl-2.5">
-                <span className="text-[10.5px] font-bold tracking-[0.06em] text-muted uppercase">
+              <li key={i} className="border-l-2 border-line pl-3">
+                <span className="text-[11px] font-semibold tracking-wide text-warn">
                   {issue.severity} · {issue.type}
                 </span>
-                <p className="mt-0.5 text-[12.5px]">{issue.problem}</p>
+                <p className="mt-0.5 text-[12.5px] text-fg">{issue.problem}</p>
                 {issue.claim && (
                   <p className="mt-0.5 text-[12px] text-muted italic">“{issue.claim}”</p>
                 )}
-                {issue.fix && (
-                  <p className="mt-0.5 text-[12px] text-muted">Fix: {issue.fix}</p>
-                )}
+                {issue.fix && <p className="mt-0.5 text-[12px] text-muted">Fix: {issue.fix}</p>}
               </li>
             ))}
           </ul>
           {critique.recommendations?.length > 0 && (
-            <div className="mt-2.5 border-t border-line-soft pt-2">
-              <span className="text-[10.5px] font-bold tracking-[0.06em] text-muted uppercase">
+            <div className="mt-3 border-t border-line-soft pt-2.5">
+              <span className="text-[11px] font-semibold tracking-wide text-muted">
                 Revision instructions
               </span>
               <ul className="mt-1 list-disc pl-4 text-[12.5px] text-muted">
@@ -187,10 +184,7 @@ export default function ReportView({
         </details>
       )}
 
-      <article
-        className="mt-3 max-h-none overflow-y-auto pr-1.5 lg:max-h-[70vh]"
-        ref={containerRef}
-      >
+      <article className="mt-5" ref={containerRef}>
         <Markdown>{report}</Markdown>
       </article>
     </Panel>
