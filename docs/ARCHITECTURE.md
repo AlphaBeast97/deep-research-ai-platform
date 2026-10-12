@@ -323,6 +323,7 @@ frontend/
         Button.jsx                 primary / secondary / ghost button primitive
         Panel.jsx                  Panel + PanelHead surface primitives
         Badge.jsx                  small status pill
+        Mark.jsx                   the document brand mark (shared with the favicon)
       QueryForm.jsx                input, examples, run/stop
       AgentTrace.jsx               phase badge, scope note, plan checklist, step trace
       Landing.jsx                  signed-out marketing page

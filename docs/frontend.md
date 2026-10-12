@@ -255,6 +255,17 @@ was first written inside `@layer components`, where Tailwind's utilities layer a
 the flash would silently never appear. It is now intentionally **unlayered**, which is what
 lets it override the card's `border-line-soft` / `bg-inset` utilities. Verified by grepping
 the built CSS for the emitted rule.
+- **The interface identity lives in the tokens, not the components.** The theme is a warm
+"reading room": ink on paper, a single teal accent, amber for annotations; `Fraunces` for
+headings, `Newsreader` for report prose, `Public Sans` for UI. Because components only ever name
+tokens, changing the palette and type was a change to `index.css` plus one `<link>` in
+`index.html` — no component was rewritten to restyle it. Three more unlayered rules carry the
+identity: `.btn-primary` (its hover mixes toward the ink colour, so the label stays legible
+whether the accent is light or dark), and `.marker` / `.sketch-rule`, the hand-drawn annotation
+motif.
+- **Motion is one orchestrated entrance and it collapses.** `.rise` plays when a report arrives;
+the live agent pulse is the only other animation. A `prefers-reduced-motion` block neutralises
+both, and every interactive element carries a visible `:focus-visible` ring.
 
 ### 13.8 Honesty in the UI: the integrity strip and the self-critique panel
 
