@@ -5,45 +5,45 @@ import Mark from './ui/Mark.jsx'
 const PIPELINE = [
   {
     name: 'Plan',
+    agent: 'Planner',
     tone: 'text-planner',
-    bar: 'bg-planner',
-    badge: 'bg-planner/12 text-planner',
+    node: 'timeline-node--planner',
     detail: 'Breaks the topic into searchable sub-questions.',
   },
   {
     name: 'Research',
+    agent: 'Researcher',
     tone: 'text-researcher',
-    bar: 'bg-researcher',
-    badge: 'bg-researcher/12 text-researcher',
-    detail: 'Searches, reads whole pages, fills its own gaps.',
+    node: 'timeline-node--researcher',
+    detail: 'Searches, reads whole pages rather than snippets, and fills its own gaps.',
   },
   {
     name: 'Draft',
+    agent: 'Writer',
     tone: 'text-writer',
-    bar: 'bg-writer',
-    badge: 'bg-writer/12 text-writer',
+    node: 'timeline-node--writer',
     detail: 'Streams a cited report as it writes it.',
   },
   {
     name: 'Critique',
+    agent: 'Critic',
     tone: 'text-critic',
-    bar: 'bg-critic',
-    badge: 'bg-critic/12 text-critic',
-    detail: 'Audits the draft against its own sources.',
+    node: 'timeline-node--critic',
+    detail: 'Audits the draft against its own sources and names what is wrong.',
   },
   {
     name: 'Revise',
+    agent: 'Writer',
     tone: 'text-writer',
-    bar: 'bg-writer',
-    badge: 'bg-writer/12 text-writer',
+    node: 'timeline-node--writer',
     detail: 'Applies every critique finding it can.',
   },
   {
     name: 'Audit',
+    agent: 'No model',
     tone: 'text-ok',
-    bar: 'bg-ok',
-    badge: 'bg-ok/12 text-ok',
-    detail: 'Checks that each citation resolves.',
+    node: 'timeline-node--ok',
+    detail: 'Checks that every citation resolves — and drops the ones that do not.',
   },
 ]
 
@@ -114,6 +114,17 @@ function Chip({ children }) {
   return (
     <span className="ml-0.5 inline-grid h-[15px] min-w-[15px] translate-y-[3px] place-items-center rounded-[4px] border border-accent/35 bg-accent/12 px-1 text-[10px] font-bold text-accent">
       {children}
+    </span>
+  )
+}
+
+/** A dot on the timeline spine, masking the dashes around itself. */
+function Marker({ className = '' }) {
+  return (
+    <span className="relative z-[1] grid h-[31px] w-[31px] flex-none place-items-center">
+      <span
+        className={`h-[11px] w-[11px] rounded-full shadow-[0_0_0_6px_var(--c-surface)] ${className}`}
+      />
     </span>
   )
 }
@@ -198,75 +209,60 @@ export default function Landing() {
         </figure>
       </section>
 
-      {/* ── Highlights ───────────────────────────────────────── */}
-      <section className="mt-16 grid gap-4 sm:grid-cols-3">
+      {/* ── What you get: one band, hairline-divided (not three boxes) ── */}
+      <section className="mt-16 grid gap-px overflow-hidden rounded-panel border border-line bg-line sm:grid-cols-3">
         {HIGHLIGHTS.map((item) => (
-          <div
-            key={item.title}
-            className="group relative overflow-hidden rounded-panel border border-line bg-surface p-5 shadow-panel transition-[transform,border-color,box-shadow] duration-300 hover:-translate-y-1 hover:border-accent/40"
-          >
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute inset-x-0 top-0 h-px bg-gradient-to-r from-accent/70 via-highlight/60 to-transparent"
-            />
-            <span
-              aria-hidden="true"
-              className="pointer-events-none absolute -top-10 -right-10 h-28 w-28 rounded-full bg-accent/12 opacity-0 blur-2xl transition-opacity duration-300 group-hover:opacity-100"
-            />
-            <span className="relative inline-grid h-10 w-10 place-items-center rounded-control border border-line bg-surface-2 text-accent">
+          <div key={item.title} className="bg-surface p-6">
+            <span className="inline-grid h-10 w-10 place-items-center rounded-control border border-line bg-surface-2 text-accent">
               {item.icon}
             </span>
-            <h2 className="relative mt-3.5 font-display text-[17px] text-strong">{item.title}</h2>
-            <p className="relative mt-2 text-[13.5px] leading-[1.6] text-muted">{item.body}</p>
+            <h2 className="mt-3.5 font-display text-[17px] text-strong">{item.title}</h2>
+            <p className="mt-2 text-[13.5px] leading-[1.6] text-muted">{item.body}</p>
           </div>
         ))}
       </section>
 
-      {/* ── Pipeline (a real sequence, so it is numbered) ─────── */}
-      <section className="relative mt-16 overflow-hidden rounded-panel border border-line bg-surface p-6 shadow-panel sm:p-8">
-        <span
-          aria-hidden="true"
-          className="pointer-events-none absolute -top-16 right-0 h-56 w-56 rounded-full bg-highlight/10 blur-3xl"
-        />
-        <div className="relative flex flex-wrap items-baseline justify-between gap-2">
-          <h2 className="font-display text-[22px] tracking-tight text-strong">
-            Six phases, one question
+      {/* ── The pipeline as a journey, not a grid of boxes ────── */}
+      <section className="mt-16 rounded-panel border border-line bg-surface p-6 shadow-panel sm:p-10">
+        <div className="mx-auto max-w-[640px]">
+          <h2 className="font-display text-[24px] tracking-tight text-strong sm:text-[26px]">
+            One question in. A cited report out.
           </h2>
-          <span className="text-[13px] text-muted">
-            Watch every step stream in live — nothing happens in a black box.
-          </span>
+          <p className="mt-2 text-[14.5px] leading-[1.6] text-muted">
+            Six phases, streamed live — nothing happens in a black box. It reads a page before it
+            trusts it, and goes back for more when it is not sure.
+          </p>
+
+          <div className="relative mt-10">
+            <span className="timeline-spine" aria-hidden="true" />
+            <ol className="list-none p-0">
+              <li className="relative flex gap-5 pb-7">
+                <Marker className="bg-muted" />
+                <p className="pt-1.5 text-[14.5px] font-semibold text-strong">Your question</p>
+              </li>
+
+              {PIPELINE.map((phase, index) => (
+                <li key={phase.name} className="relative flex gap-5 pb-7">
+                  <span className={`timeline-node ${phase.node}`}>{index + 1}</span>
+                  <div className="pt-0.5">
+                    <div className="flex flex-wrap items-baseline gap-2">
+                      <h3 className="font-display text-[17px] text-strong">{phase.name}</h3>
+                      <span className={`text-[11.5px] font-semibold ${phase.tone}`}>
+                        {phase.agent}
+                      </span>
+                    </div>
+                    <p className="mt-1 text-[14px] leading-[1.6] text-muted">{phase.detail}</p>
+                  </div>
+                </li>
+              ))}
+
+              <li className="relative flex gap-5">
+                <Marker className="h-[13px] w-[13px] bg-accent" />
+                <p className="pt-1.5 text-[14.5px] font-semibold text-accent">A cited report</p>
+              </li>
+            </ol>
+          </div>
         </div>
-
-        <ol className="relative mt-6 grid list-none gap-3 p-0 sm:grid-cols-2 lg:grid-cols-3">
-          {PIPELINE.map((phase, index) => (
-            <li
-              key={phase.name}
-              className="phase-card group relative rounded-control border border-line-soft bg-inset p-4 transition-[transform,border-color] duration-300 hover:-translate-y-0.5 hover:border-accent/40"
-            >
-              <span
-                aria-hidden="true"
-                className={`absolute top-3.5 bottom-3.5 left-0 w-[3px] rounded-r-full ${phase.bar}`}
-              />
-              <div className="flex items-center gap-2.5 pl-1.5">
-                <span
-                  className={`grid h-[22px] w-[22px] flex-none place-items-center rounded-full text-[11px] font-bold ${phase.badge}`}
-                >
-                  {index + 1}
-                </span>
-                <span className={`font-display text-[15px] font-semibold ${phase.tone}`}>
-                  {phase.name}
-                </span>
-              </div>
-              <p className="mt-2 pl-1.5 text-[13px] leading-[1.55] text-muted">{phase.detail}</p>
-            </li>
-          ))}
-        </ol>
-
-        <p className="relative mt-6 border-t border-line-soft pt-5 text-[14px] leading-[1.6] text-muted">
-          The researcher doesn&apos;t stop at the first page of results. When its own coverage of a
-          sub-question is thin, it proposes new searches and goes back — then the critic reads the
-          finished draft the way a sceptical editor would, and the writer fixes what it finds.
-        </p>
       </section>
 
       {/* ── Closing CTA ──────────────────────────────────────── */}

@@ -358,30 +358,101 @@
   box-shadow: none;
 }
 
-/* A dashed rail between phase cards, so the six read as one sequence; it is
-   hidden at the end of each responsive row. */
-.phase-card::after {
+/* The step pill in the trace header: names the phase the agents are on, in the
+   colour of the agent doing the work, with a pulsing dot and a slow shimmer. */
+.step-pill {
+  --pill: var(--c-accent);
+  position: relative;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  overflow: hidden;
+  border: 1px solid color-mix(in srgb, var(--pill) 38%, transparent);
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--pill) 12%, transparent);
+  padding: 4px 12px 4px 10px;
+  color: var(--pill);
+  font-size: 11.5px;
+  font-weight: 600;
+}
+.step-pill__dot {
+  flex: none;
+  height: 7px;
+  width: 7px;
+  border-radius: 999px;
+  background: currentColor;
+  animation: status-pulse 1.6s ease-in-out infinite;
+}
+.step-pill::after {
   content: '';
   position: absolute;
-  top: 50%;
-  right: -7px;
-  width: 14px;
-  border-top: 1px dashed var(--c-line);
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 35%,
+    color-mix(in srgb, var(--pill) 26%, transparent) 50%,
+    transparent 65%
+  );
+  transform: translateX(-100%);
+  animation: status-shimmer 2.6s ease-in-out infinite;
 }
-@media (max-width: 639px) {
-  .phase-card::after {
-    display: none;
-  }
+.step-pill--planner {
+  --pill: var(--c-planner);
 }
-@media (min-width: 640px) and (max-width: 1023px) {
-  .phase-card:nth-child(2n)::after {
-    display: none;
-  }
+.step-pill--researcher {
+  --pill: var(--c-researcher);
 }
-@media (min-width: 1024px) {
-  .phase-card:nth-child(3n)::after {
-    display: none;
-  }
+.step-pill--writer {
+  --pill: var(--c-writer);
+}
+.step-pill--critic {
+  --pill: var(--c-critic);
+}
+.step-pill--ok {
+  --pill: var(--c-ok);
+}
+
+/* The landing pipeline as a journey: a dashed spine with numbered nodes, framed
+   by "your question" at the top and "a cited report" at the bottom. */
+.timeline-spine {
+  position: absolute;
+  left: 15px;
+  top: 24px;
+  bottom: 24px;
+  width: 1px;
+  background-image: repeating-linear-gradient(to bottom, var(--c-line) 0 3px, transparent 3px 8px);
+}
+.timeline-node {
+  --node: var(--c-accent);
+  position: relative;
+  z-index: 1;
+  display: grid;
+  height: 31px;
+  width: 31px;
+  flex: none;
+  place-items: center;
+  border: 1px solid color-mix(in srgb, var(--node) 42%, var(--c-surface));
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--node) 14%, var(--c-surface));
+  color: var(--node);
+  font-size: 12.5px;
+  font-weight: 700;
+}
+.timeline-node--planner {
+  --node: var(--c-planner);
+}
+.timeline-node--researcher {
+  --node: var(--c-researcher);
+}
+.timeline-node--writer {
+  --node: var(--c-writer);
+}
+.timeline-node--critic {
+  --node: var(--c-critic);
+}
+.timeline-node--ok {
+  --node: var(--c-ok);
 }
 
 /* ──────────────────────────────────────────────────────────────

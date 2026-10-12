@@ -1,6 +1,5 @@
 import { useState } from 'react'
 import Panel from './ui/Panel.jsx'
-import Badge from './ui/Badge.jsx'
 import FadeBox from './ui/FadeBox.jsx'
 import { cn } from '../lib/cn.js'
 
@@ -13,13 +12,14 @@ const AGENT_META = {
 
 const FALLBACK = { label: 'Agent', text: 'text-muted', dot: 'bg-muted' }
 
-const PHASE_LABEL = {
-  plan: 'Planning',
-  research: 'Researching',
-  draft: 'Drafting',
-  critique: 'Auditing',
-  revision: 'Revising',
-  audit: 'Verifying citations',
+// Which agent is working, so the step pill can take that agent's colour.
+const PHASE_META = {
+  plan: { label: 'Planning', pill: 'step-pill--planner' },
+  research: { label: 'Researching', pill: 'step-pill--researcher' },
+  draft: { label: 'Drafting', pill: 'step-pill--writer' },
+  critique: { label: 'Auditing', pill: 'step-pill--critic' },
+  revision: { label: 'Revising', pill: 'step-pill--writer' },
+  audit: { label: 'Verifying citations', pill: 'step-pill--ok' },
 }
 
 function Chevron({ open }) {
@@ -97,12 +97,11 @@ export default function AgentTrace({ steps, plan, statusMessage, phase, running 
           <span className="font-display text-[15px] font-semibold tracking-tight text-strong">
             Agent activity
           </span>
-          {running && phase && <Badge tone="neutral">{PHASE_LABEL[phase] ?? phase}</Badge>}
-          {running && (
-            <Badge tone="accent">
-              <span className="h-[6px] w-[6px] rounded-full bg-accent animate-[pulse_1.3s_ease-in-out_infinite]" />
-              live
-            </Badge>
+          {running && phase && (
+            <span className={cn('step-pill', PHASE_META[phase]?.pill)}>
+              <span className="step-pill__dot" aria-hidden="true" />
+              {PHASE_META[phase]?.label ?? phase}
+            </span>
           )}
         </span>
         <span className="flex flex-none items-center gap-2 text-[12.5px] text-muted">
