@@ -413,47 +413,7 @@
   --pill: var(--c-ok);
 }
 
-/* The landing pipeline as a journey: a dashed spine with numbered nodes, framed
-   by "your question" at the top and "a cited report" at the bottom. */
-.timeline-spine {
-  position: absolute;
-  left: 15px;
-  top: 24px;
-  bottom: 24px;
-  width: 1px;
-  background-image: repeating-linear-gradient(to bottom, var(--c-line) 0 3px, transparent 3px 8px);
-}
-.timeline-node {
-  --node: var(--c-accent);
-  position: relative;
-  z-index: 1;
-  display: grid;
-  height: 31px;
-  width: 31px;
-  flex: none;
-  place-items: center;
-  border: 1px solid color-mix(in srgb, var(--node) 42%, var(--c-surface));
-  border-radius: 999px;
-  background: color-mix(in srgb, var(--node) 14%, var(--c-surface));
-  color: var(--node);
-  font-size: 12.5px;
-  font-weight: 700;
-}
-.timeline-node--planner {
-  --node: var(--c-planner);
-}
-.timeline-node--researcher {
-  --node: var(--c-researcher);
-}
-.timeline-node--writer {
-  --node: var(--c-writer);
-}
-.timeline-node--critic {
-  --node: var(--c-critic);
-}
-.timeline-node--ok {
-  --node: var(--c-ok);
-}
+/* The six phases are chapters, not a timeline — see Landing.jsx. */
 
 /* ──────────────────────────────────────────────────────────────
    The centred status bubble shown while a run is in flight: a

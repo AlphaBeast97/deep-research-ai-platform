@@ -8,43 +8,49 @@ const PIPELINE = [
     name: 'Plan',
     agent: 'Planner',
     tone: 'text-planner',
-    node: 'timeline-node--planner',
-    detail: 'Breaks the topic into searchable sub-questions.',
+    dot: 'bg-planner',
+    detail: 'Breaks the topic into searchable, independent sub-questions.',
+    output: 'searchable sub-questions',
   },
   {
     name: 'Research',
     agent: 'Researcher',
     tone: 'text-researcher',
-    node: 'timeline-node--researcher',
-    detail: 'Searches, reads whole pages rather than snippets, and fills its own gaps.',
+    dot: 'bg-researcher',
+    detail: 'Searches, then reads whole pages rather than snippets — and goes back when coverage is thin.',
+    output: 'cited findings and gaps',
   },
   {
     name: 'Draft',
     agent: 'Writer',
     tone: 'text-writer',
-    node: 'timeline-node--writer',
-    detail: 'Streams a cited report as it writes it.',
+    dot: 'bg-writer',
+    detail: 'Synthesises every finding into one report, with a numbered source on each claim.',
+    output: 'a streamed draft',
   },
   {
     name: 'Critique',
     agent: 'Critic',
     tone: 'text-critic',
-    node: 'timeline-node--critic',
-    detail: 'Audits the draft against its own sources and names what is wrong.',
+    dot: 'bg-critic',
+    detail: 'Audits the draft against its own sources and names what is unsupported, wrong or missing.',
+    output: 'issues and a verdict',
   },
   {
     name: 'Revise',
     agent: 'Writer',
     tone: 'text-writer',
-    node: 'timeline-node--writer',
-    detail: 'Applies every critique finding it can.',
+    dot: 'bg-writer',
+    detail: 'Rewrites the report with the critique applied, keeping what was already correct.',
+    output: 'the corrected report',
   },
   {
     name: 'Audit',
     agent: 'No model',
     tone: 'text-ok',
-    node: 'timeline-node--ok',
-    detail: 'Checks that every citation resolves — and drops the ones that do not.',
+    dot: 'bg-ok',
+    detail: 'Checks every citation resolves — and removes the ones that do not.',
+    output: 'verified citations',
   },
 ]
 
@@ -115,17 +121,6 @@ function Chip({ children }) {
   return (
     <span className="ml-0.5 inline-grid h-[15px] min-w-[15px] translate-y-[3px] place-items-center rounded-[4px] border border-accent/35 bg-accent/12 px-1 text-[10px] font-bold text-accent">
       {children}
-    </span>
-  )
-}
-
-/** A dot on the timeline spine, masking the dashes around itself. */
-function Marker({ className = '' }) {
-  return (
-    <span className="relative z-[1] grid h-[31px] w-[31px] flex-none place-items-center">
-      <span
-        className={`h-[11px] w-[11px] rounded-full shadow-[0_0_0_6px_var(--c-surface)] ${className}`}
-      />
     </span>
   )
 }
@@ -232,60 +227,55 @@ export default function Landing() {
         ))}
       </section>
 
-      {/* ── The pipeline as a journey, not a grid of boxes ────── */}
+      {/* ── The six phases, as chapters ─────────────────────── */}
       <section className="mt-16 rounded-panel border border-line bg-surface p-6 shadow-panel sm:p-10">
-        <div className="mx-auto max-w-[640px]">
-          <Reveal
-            as="h2"
-            className="font-display text-[24px] tracking-tight text-strong sm:text-[26px]"
-          >
-            One question in. A cited report out.
-          </Reveal>
-          <Reveal as="p" delay={80} className="mt-2 text-[14.5px] leading-[1.6] text-muted">
-            Six phases, streamed live — nothing happens in a black box. It reads a page before it
-            trusts it, and goes back for more when it is not sure.
-          </Reveal>
+        <Reveal
+          as="h2"
+          className="font-display text-[24px] tracking-tight text-strong sm:text-[28px]"
+        >
+          One question in. A cited report out.
+        </Reveal>
+        <Reveal as="p" delay={80} className="mt-2 max-w-[620px] text-[14.5px] leading-[1.6] text-muted">
+          Six phases, streamed live — nothing happens in a black box. It reads a page before it
+          trusts it, and goes back for more when it is not sure.
+        </Reveal>
 
-          <div className="relative mt-10">
-            <span className="timeline-spine" aria-hidden="true" />
-            <ol className="list-none p-0">
-              <Reveal as="li" from="left" className="relative flex gap-5 pb-7">
-                <Marker className="bg-muted" />
-                <p className="pt-1.5 text-[14.5px] font-semibold text-strong">Your question</p>
-              </Reveal>
-
-              {PIPELINE.map((phase, index) => (
-                <Reveal
-                  as="li"
-                  key={phase.name}
-                  from="left"
-                  delay={index * 70}
-                  className="group relative flex gap-5 pb-7"
-                >
+        <ol className="mt-10 list-none p-0">
+          {PIPELINE.map((phase, index) => (
+            <Reveal
+              as="li"
+              key={phase.name}
+              delay={index * 60}
+              className="group grid gap-x-10 gap-y-3 border-t border-line-soft py-7 first:border-t-0 first:pt-0 sm:grid-cols-[minmax(0,210px)_minmax(0,1fr)]"
+            >
+              <div>
+                <div className="flex items-baseline gap-3">
                   <span
-                    className={`timeline-node ${phase.node} transition-transform duration-300 group-hover:scale-[1.08]`}
+                    className={`font-display text-[30px] leading-none transition-transform duration-300 group-hover:scale-110 ${phase.tone}`}
                   >
                     {index + 1}
                   </span>
-                  <div className="pt-0.5">
-                    <div className="flex flex-wrap items-baseline gap-2">
-                      <h3 className="font-display text-[17px] text-strong">{phase.name}</h3>
-                      <span className={`text-[11.5px] font-semibold ${phase.tone}`}>
-                        {phase.agent}
-                      </span>
-                    </div>
-                    <p className="mt-1 text-[14px] leading-[1.6] text-muted">{phase.detail}</p>
-                  </div>
-                </Reveal>
-              ))}
+                  <h3 className="font-display text-[19px] tracking-tight text-strong">
+                    {phase.name}
+                  </h3>
+                </div>
+                <span className={`mt-2 block text-[11.5px] font-semibold ${phase.tone}`}>
+                  {phase.agent}
+                </span>
+              </div>
 
-              <Reveal as="li" from="left" className="relative flex gap-5">
-                <Marker className="h-[13px] w-[13px] bg-accent" />
-                <p className="pt-1.5 text-[14.5px] font-semibold text-accent">A cited report</p>
-              </Reveal>
-            </ol>
-          </div>
-        </div>
+              <div>
+                <p className="max-w-[560px] text-[14.5px] leading-[1.65] text-muted">
+                  {phase.detail}
+                </p>
+                <span className="mt-3.5 inline-flex items-center gap-2 rounded-full border border-line bg-surface-2 px-3 py-1.5 text-[12px] text-muted">
+                  <span className={`h-[6px] w-[6px] flex-none rounded-full ${phase.dot}`} />
+                  {phase.output}
+                </span>
+              </div>
+            </Reveal>
+          ))}
+        </ol>
       </section>
 
       {/* ── Closing CTA ──────────────────────────────────────── */}
@@ -293,7 +283,11 @@ export default function Landing() {
         <Reveal as="h2" className="font-display text-[26px] tracking-tight text-strong">
           Ready when you are.
         </Reveal>
-        <Reveal as="p" delay={80} className="mx-auto mt-2 max-w-[520px] text-[14px] leading-[1.6] text-muted">
+        <Reveal
+          as="p"
+          delay={80}
+          className="mx-auto mt-2 max-w-[520px] text-[14px] leading-[1.6] text-muted"
+        >
           Sign in and run your first question. Reports are saved to your account, so you can come
           back to them and export any of them at any time.
         </Reveal>
