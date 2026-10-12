@@ -62,14 +62,33 @@ export function combineSignals(...signals) {
 
 const seconds = (ms) => Math.round(ms / 1000)
 
-const timeoutMessage = () =>
+// Every message below names the model that actually made the call. `config.llm.model`
+// is the small tier, so naming it here would send a user chasing the wrong
+// model name when the planner, writer or critic is the one that timed out.
+const timeoutMessage = (model) =>
   `The model did not respond within ${seconds(config.llm.timeoutMs)}s ` +
-  `(${config.llm.baseUrl || 'api.openai.com'}, model "${config.llm.model}"). ` +
+  `(${config.llm.baseUrl || 'api.openai.com'}, model "${model || config.llm.model}"). ` +
   'Check that the model name exists at your provider, or raise LLM_TIMEOUT_MS.'
 
 const emptyMessage = (model) =>
   `The model "${model || config.llm.model}" returned an empty response. ` +
   'Check LLM_MODEL / LLM_MODEL_SMART against your provider\'s catalogue.'
+
+/** No token arrived before the model had started writing at all. */
+const firstTokenMessage = (model) =>
+  `The model accepted the request but produced no output for ${seconds(config.llm.timeoutMs)}s ` +
+  `(model "${model || config.llm.smartModel}" at ${config.llm.baseUrl || 'api.openai.com'}). ` +
+  'Raise LLM_TIMEOUT_MS, or use a model that starts writing sooner.'
+
+/**
+ * The answer stopped mid-flight. Deliberately says the *answer* was cut off
+ * rather than the run: a stalled revision stream is caught in `orchestrator.js`
+ * and degraded to the draft, so the run itself survives it.
+ */
+const stalledMessage = (model) =>
+  `The model stopped sending output for ${seconds(config.llm.streamIdleTimeoutMs)}s and the answer was cut off. ` +
+  `Model "${model || config.llm.smartModel}" may be unavailable at ${config.llm.baseUrl || 'api.openai.com'} — ` +
+  'try another LLM_MODEL_SMART, or raise LLM_STREAM_IDLE_TIMEOUT_MS.'
 
 /**
  * Turn an SDK failure into something a user can act on. Aborts caused by the
@@ -80,14 +99,14 @@ const emptyMessage = (model) =>
  * is returned as-is: it is the only explanation the user gets, and replacing it
  * with a generic "the run was stopped" hides why.
  */
-export function explainError(err, signal) {
+export function explainError(err, signal, model) {
   if (signal?.aborted) {
     if (signal.reason instanceof Error) return signal.reason
     return err instanceof AbortedError ? err : new AbortedError()
   }
   if (err?.name === 'AbortError') return err
   if (err?.name === 'APIConnectionTimeoutError' || /timed out/i.test(err?.message || '')) {
-    return new Error(timeoutMessage())
+    return new Error(timeoutMessage(model))
   }
   return err
 }
@@ -132,7 +151,7 @@ async function requestJSON({ system, user, model, temperature, signal }) {
       { signal, timeout: config.llm.timeoutMs, maxRetries: config.llm.maxRetries },
     )
   } catch (err) {
-    throw explainError(err, signal)
+    throw explainError(err, signal, model)
   }
 
   const usage = completion.usage
@@ -201,13 +220,34 @@ export async function chatJSON({ system, user, model, temperature = 0.2, signal 
  * so the caller can forward it over SSE immediately.
  *
  * The SDK's request timeout is cleared as soon as the response *headers* land,
- * so it cannot catch a stream that opens and then goes quiet. The watchdog here
- * aborts when no token has arrived for `LLM_STREAM_IDLE_TIMEOUT_MS`; every token
- * re-arms it, so a slow-but-progressing report is never cut off.
+ * so it cannot catch a stream that opens and then goes quiet — the watchdog here
+ * can. It measures two different waits with two different budgets:
+ *
+ *   · **Time to the first token** — queueing plus prompt processing. On a
+ *     revision the prompt carries the whole draft, so this wait is legitimately
+ *     long, and it is the same kind of wait as the request itself: it gets
+ *     `LLM_TIMEOUT_MS`. (Before the headers the SDK's own timeout covers it,
+ *     which is why the watchdog is armed only once `create` resolves.)
+ *   · **The gap between tokens** — normally milliseconds, so a long silence
+ *     means a model thinking hard or a stream that has died:
+ *     `LLM_STREAM_IDLE_TIMEOUT_MS`.
+ *
+ * Any frame re-arms the watchdog, because any frame proves the provider is still
+ * there; only real output (content, or a reasoning delta) switches it from the
+ * first-token budget to the inter-token one, so a slow first token is never
+ * judged by the tighter number. A provider that keeps sending empty frames is
+ * alive by definition, and `RUN_TIMEOUT_MS` is the backstop for a run that then
+ * never finishes.
+ *
+ * Retries cannot rescue any of this: a stream that dies after the headers is
+ * already past the SDK's retry loop.
  */
 export async function chatStream({ system, user, model, temperature = 0.4, onToken, signal }) {
   const idle = new AbortController()
   const idleMs = config.llm.streamIdleTimeoutMs
+  const firstTokenMs = config.llm.timeoutMs
+  let budgetMs = firstTokenMs
+  let writing = false
   let timer = null
   let stalled = false
 
@@ -216,10 +256,11 @@ export async function chatStream({ system, user, model, temperature = 0.4, onTok
     timer = setTimeout(() => {
       stalled = true
       idle.abort()
-    }, idleMs)
+    }, budgetMs)
   }
 
-  armWatchdog()
+  const stallError = () => new Error(writing ? stalledMessage(model) : firstTokenMessage(model))
+
   try {
     throwIfAborted(signal)
 
@@ -240,27 +281,42 @@ export async function chatStream({ system, user, model, temperature = 0.4, onTok
       },
     )
 
+    // Headers are in. Whatever waits from here — the first token, or a silence
+    // in the middle of the report — the SDK is no longer watching for it.
+    armWatchdog()
+
     let text = ''
     for await (const chunk of stream) {
-      const delta = chunk.choices?.[0]?.delta?.content
-      if (delta) {
-        armWatchdog()
-        text += delta
-        if (onToken) onToken(delta)
+      const delta = chunk.choices?.[0]?.delta
+      // `reasoning_content` / `reasoning` are what several OpenAI-compatible
+      // providers expose a thinking model's output as. Either counts as the
+      // model having started: switching budgets on a role-only frame would put
+      // the first-token wait back on the inter-token clock.
+      if (!writing && (delta?.content || delta?.reasoning_content || delta?.reasoning)) {
+        writing = true
+        budgetMs = idleMs
+      }
+      armWatchdog()
+      if (delta?.content) {
+        text += delta.content
+        if (onToken) onToken(delta.content)
       }
     }
+
+    // Aborting the response does **not** reliably surface as an error: the body
+    // is closed and the SDK's iterator simply completes. Without this, a stall
+    // that killed the tail of an answer would fall through and be returned as a
+    // finished one — a truncated report, persisted as complete. So the stall is
+    // re-asserted here, before the empty-answer check (an answer cut off before
+    // the first token has no text and would otherwise be reported as "empty",
+    // which names the wrong problem).
+    if (stalled) throw stallError()
 
     if (!text.trim()) throw new Error(emptyMessage(model || config.llm.smartModel))
     return text
   } catch (err) {
-    if (stalled) {
-      throw new Error(
-        `The model stopped sending output for ${seconds(idleMs)}s and the run was cut off. ` +
-          `Model "${model || config.llm.smartModel}" may be unavailable at ${config.llm.baseUrl || 'api.openai.com'} — ` +
-          'try another LLM_MODEL_SMART, or raise LLM_STREAM_IDLE_TIMEOUT_MS.',
-      )
-    }
-    throw explainError(err, signal)
+    if (stalled) throw stallError()
+    throw explainError(err, signal, model)
   } finally {
     clearTimeout(timer)
   }

@@ -284,9 +284,9 @@ All backend settings live in `backend/.env` (see `.env.example`):
 | `CRITIC_FULL_TEXT_SOURCES` | `8` | Cited sources the critic reviews as full page text (0–16; `0` = snippets only) |
 | `RESEARCH_CONCURRENCY` | `3` | Sub-questions researched in parallel (1–6) |
 | `RUN_TIMEOUT_MS` | `900000` | Hard ceiling on one run, in ms |
-| `LLM_TIMEOUT_MS` | `120000` | Hard ceiling on one model request, in ms |
+| `LLM_TIMEOUT_MS` | `120000` | Hard ceiling on one model request, in ms — and the budget for a streamed answer's wait for its first token |
 | `LLM_MAX_RETRIES` | `2` | Retries after a timeout/failure (worst case ≈ `(retries + 1) × LLM_TIMEOUT_MS`) |
-| `LLM_STREAM_IDLE_TIMEOUT_MS` | `60000` | How long a streamed answer may send nothing before it is cut off |
+| `LLM_STREAM_IDLE_TIMEOUT_MS` | `180000` | How long a streamed answer may send nothing **between tokens** before it is cut off |
 
 To make runs much faster at the cost of depth, set `RESEARCH_MAX_ROUNDS=0`,
 `DEEP_FETCH=false` and `RESEARCH_CRITIQUE=false`.
@@ -300,11 +300,15 @@ request and then says nothing is indistinguishable from a slow one:
   over the SSE connection, which aborts the model and search calls in flight.
   A stopped run is reported as a partial draft in the UI — no critique, no
   citation audit — rather than presented as finished.
-- **`LLM_STREAM_IDLE_TIMEOUT_MS`** is the one that matters for the streamed
-  writer: the OpenAI SDK clears its own timeout as soon as response *headers*
-  arrive, so a stream that opens and then goes quiet is otherwise unbounded. The
-  watchdog re-arms on every token, so a slow-but-progressing report is never cut
-  off, however long it takes.
+- **The streamed writer gets two budgets, not one.** The OpenAI SDK clears its
+  own timeout as soon as response *headers* arrive, so a stream that opens and
+  then goes quiet is otherwise unbounded, and a single "silence" number would
+  conflate two different waits. `LLM_TIMEOUT_MS` covers the wait for the *first*
+  token — prompt processing, which on a revision means a prompt holding the whole
+  draft — and `LLM_STREAM_IDLE_TIMEOUT_MS` covers silence *between* tokens, where
+  normally milliseconds pass. Any frame re-arms the watchdog, so a
+  slow-but-progressing report is never cut off, however long it takes; only real
+  output moves it onto the tighter number.
 - **An empty response is an error, not an empty report.** Some reasoning models
   spend their entire budget thinking and return zero content tokens
   (`finish_reason: "length"`); that is reported by name, with the model, instead

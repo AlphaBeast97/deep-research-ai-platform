@@ -48,11 +48,15 @@ const config = {
     // common on shared provider endpoints. Worst case is roughly
     // (retries + 1) × timeoutMs, which RUN_TIMEOUT_MS still caps.
     maxRetries: clamp(int(process.env.LLM_MAX_RETRIES, 2), 0, 3),
-    // How long a *streamed* answer may go without emitting a token before it is
-    // treated as stalled. A stream that is still producing text is never cut
-    // off, however long the report takes.
+    // How long a *streamed* answer may send nothing **between tokens** before it
+    // is treated as stalled. Measured between deltas, not from the start of the
+    // request: the wait for the first token is prompt processing, which is
+    // bounded by `timeoutMs` instead (see `chatStream` in llm.js) — that split is
+    // what stops a thinking model on a large prompt being mistaken for a dead
+    // one. A stream that is still producing text is never cut off, however long
+    // the report takes, and `runTimeoutMs` still bounds the run as a whole.
     streamIdleTimeoutMs: clamp(
-      int(process.env.LLM_STREAM_IDLE_TIMEOUT_MS, 60_000),
+      int(process.env.LLM_STREAM_IDLE_TIMEOUT_MS, 180_000),
       5_000,
       600_000,
     ),

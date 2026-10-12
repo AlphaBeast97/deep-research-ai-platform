@@ -363,6 +363,23 @@ local servers (Ollama, LM Studio, vLLM) work: they need no key, only a base URL.
 `json_object` would force it to wrap the report in a JSON string — destroying the
 incremental token stream that the UI depends on.
 
+**Why a stream gets two timeouts rather than one.** The SDK's request timeout is cleared when
+the response headers land, so nothing but our own watchdog bounds a stream after that point —
+and a single number for "silence" conflates two waits that are not alike. Waiting for the
+*first* token is prompt processing and queueing, and on a revision the prompt carries the whole
+draft, so it is bounded by `LLM_TIMEOUT_MS` like the request itself. Waiting *between* tokens is
+normally milliseconds, so a long silence there means a thinking model or a dead stream, and that
+is what `LLM_STREAM_IDLE_TIMEOUT_MS` bounds. Every frame re-arms the watchdog; only real output
+switches it from the first budget to the second. Retries are no help here either way: a stream
+that dies after the headers is already past the SDK's retry loop, which is why a stalled
+revision is degraded to the draft rather than silently retried ([§7.7](agents.md#77-critique-and-the-always-on-revision)).
+
+One trap in that mechanism is worth naming: aborting a stream does **not** reliably arrive as an
+error — the response body is closed and the SDK's iterator simply completes. The stall is
+therefore re-asserted *after* the loop as well as in the `catch`, because otherwise the truncated
+text already received would be returned as a finished answer and persisted as a complete report.
+That is a silent data-integrity failure, not a timeout.
+
 ### 10.5 JSON mode: defended with a fallback
 
 ```js
@@ -630,9 +647,9 @@ has the full argument, including the moment this looked like a bug and wasn't.
 | `LLM_MODEL` | `gpt-4o-mini` | researcher tier | provider 404 |
 | `LLM_MODEL_SMART` | falls back to `LLM_MODEL` | planner + writer tier | provider 404 |
 | `LLM_JSON_MODE` | `true` | send `response_format=json_object` | 400s on strict local models |
-| `LLM_TIMEOUT_MS` | `120000` | hard ceiling on one model request, **clamped 5 s–10 min** | too low truncates slow models; the SDK default (10 min) is what let a stall look like a hang |
-| `LLM_MAX_RETRIES` | `2` | retries after a timeout/5xx, **clamped 0–3** | worst case ≈ `(retries + 1) × LLM_TIMEOUT_MS` |
-| `LLM_STREAM_IDLE_TIMEOUT_MS` | `60000` | how long a streamed answer may send nothing before it is cut off, **clamped 5 s–10 min** | a slow *thinking* model can trip this; raise it for one |
+| `LLM_TIMEOUT_MS` | `120000` | hard ceiling on one model request, and the budget for a streamed answer's **time to first token**, **clamped 5 s–10 min** | too low truncates slow models; the SDK default (10 min) is what let a stall look like a hang |
+| `LLM_MAX_RETRIES` | `2` | retries after a timeout/5xx, **clamped 0–3** | worst case ≈ `(retries + 1) × LLM_TIMEOUT_MS` for a non-streamed call; a stream that dies after the headers is past the retry loop |
+| `LLM_STREAM_IDLE_TIMEOUT_MS` | `180000` | how long a streamed answer may send nothing **between tokens** before it is cut off, **clamped 5 s–10 min** | a slow *thinking* model that goes quiet mid-report can trip this; raise it for one |
 | `TAVILY_API_KEY` | — | required for search + full-page extraction | **exit(1)** at boot |
 | `TAVILY_MAX_RESULTS` | `6` | sources per sub-question, **clamped 1–12** | out-of-range silently clamped |
 | `MAX_SUBQUESTIONS` | `6` | planner breadth, **clamped 1–8** | out-of-range silently clamped |
