@@ -1,7 +1,7 @@
 import { cn } from '../../lib/cn.js'
 
 const BASE =
-  'inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-control border font-semibold ' +
+  'inline-flex cursor-pointer items-center justify-center gap-1.5 whitespace-nowrap rounded-control border font-semibold ' +
   'transition-[background-color,border-color,color,transform,box-shadow] duration-200 ' +
   'active:translate-y-px disabled:cursor-not-allowed disabled:opacity-45 ' +
   'disabled:active:translate-y-0'
