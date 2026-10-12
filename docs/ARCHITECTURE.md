@@ -322,8 +322,10 @@ frontend/
       ui/
         Button.jsx                 primary / secondary / ghost button primitive
         Panel.jsx                  Panel + PanelHead surface primitives
-        Badge.jsx                  small status pill
+        Badge.jsx                  small count/status chip
         Mark.jsx                   the document brand mark (shared with the favicon)
+        FadeBox.jsx                fade-and-blur collapse wrapper (report + trace)
+        StatusPill.jsx             the animated "which step is running" bubble
       QueryForm.jsx                input, examples, run/stop
       AgentTrace.jsx               phase badge, scope note, plan checklist, step trace
       Landing.jsx                  signed-out marketing page
