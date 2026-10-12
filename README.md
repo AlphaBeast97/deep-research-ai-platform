@@ -99,17 +99,17 @@ reports coverage for the UI.
 │   └── …                      # ARCHITECTURE · agents · backend · frontend · verification · decisions · deployment
 ├── scripts/check-docs.mjs     # fact-checks these docs against the code
 └── frontend/
-    ├── test/                    # node:test — diagram repair + citation parsing (npm test)
+    ├── test/                    # node:test — diagram repair, citations, exports (npm test)
     └── src/
-        ├── main.jsx             # ClerkProvider wraps the app
+        ├── main.jsx             # createRoot + ClerkProvider + LazyMotion
         ├── App.jsx              # sign-in gate · trace · report · library
         ├── index.css            # Tailwind v4 + theme tokens + report styles
         ├── api.js               # SSE parser + REST calls (Bearer token)
         ├── hooks/useResearch.js # run lifecycle state machine (13 events)
-        ├── lib/                 # format · citations · mermaid repair · export · docx · cn
+        ├── lib/                 # format · citations · mermaid repair · export · docx · cn · motion
         └── components/
-            ├── ui/              # Button · Panel · Badge primitives
-            ├── Landing.jsx      # signed-out marketing page
+            ├── ui/              # Button · Panel · Badge · Mark · FadeBox · StatusPill · Reveal
+            ├── Landing.jsx      # signed-out marketing page (hero · chapters · reveals)
             ├── QueryForm · AgentTrace · ReportView
             ├── SourcesPanel · HistoryPanel
             └── Markdown.jsx · Mermaid.jsx   # report rendering + diagrams
@@ -379,7 +379,7 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
   a verdict alone can't silently skip the fix.
 - **Citation audit** — before saving, every `[n]` marker is checked against the
   real source list; unresolvable ones are removed and coverage is reported.
-- **Live agent trace** — a phase badge, per-agent steps, and the critic's issues
+- **Live agent trace** — a live step indicator, per-agent steps, and the critic's issues
   appear as they happen, so a multi-minute run never looks frozen.
 - **Honesty in the UI** — an integrity strip and a self-critique panel surface the
   audit numbers and the critic's verdict instead of hiding them.
@@ -389,8 +389,8 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
   parsed, so the diagram the prose refers to is the diagram you see; anything the repair cannot
   rescue still falls back to showing its source rather than breaking the report.
 - **Citations & sources panel** — inline `[n]` markers become clickable chips that scroll to the matching source card.
-- **Export** — copy as Markdown, download `.md` (repairable diagrams preserved as code), download **Word `.docx`** (real headings, tables, and diagrams rasterised to images), or print/save as **PDF**. The `.docx` and PDF both carry a **Sources appendix** listing only the sources the report actually cites, so every entry resolves to a `[n]` in the text and vice versa.
-- **Tailwind CSS v4 UI** — dark-first design tokens, light theme via `prefers-color-scheme`, no hand-written component CSS.
+- **Export** — copy as Markdown, download `.md` (repairable diagrams preserved as code), download **Word `.docx`** (real headings, tables, and diagrams rasterised to images), or print/save as **PDF**. All three files carry a **Sources appendix** listing only the sources the report actually cites, so every entry resolves to a `[n]` in the text and vice versa.
+- **A warm, editorial UI** — Tailwind v4 with the whole palette and type scale in one token block: an ink-on-paper base, a single teal accent, amber for annotations, and `Fraunces` / `Newsreader` / `Public Sans` for display, report prose and UI. Dark stays supported (and default) via `prefers-color-scheme`. The report reads like a document rather than a dashboard, long streams fade and blur at the edge instead of snapping shut, and the landing assembles itself on scroll (`motion`).
 
 ## Tech stack
 
@@ -402,6 +402,7 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
 | Search | Tavily (`@tavily/core`) — search + full-page extraction |
 | Storage | MongoDB Atlas via Mongoose (required) |
 | Frontend | React 19, Vite 8, Tailwind CSS v4 |
+| Animation | `motion` — the landing's scroll reveals only (code-split) |
 | Report rendering | `react-markdown` + `remark-gfm`, `mermaid` for diagrams |
 
 ## Notes & limitations

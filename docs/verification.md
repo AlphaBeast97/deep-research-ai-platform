@@ -140,6 +140,20 @@ And what still cannot be verified here:
 | MongoDB driver at runtime | No `MONGODB_URI` provided ("still no db") | `mongoStore.js` is written and type-consistent but never executed |
 | Multiple providers simultaneously | Only Gemini was available | Other base URLs unproven in practice |
 
+**Since this table was written, three of those rows have moved** — recorded here rather than
+quietly rewritten above, because the table is a record of *that* session:
+
+- the app now runs against a real Atlas cluster: reports save, list and reopen across reloads, so
+  the Mongo adapter is exercised rather than merely type-consistent;
+- the UI has been driven in a real (headless) browser across both themes and a 390 px viewport,
+  which covers the rows that were waiting on one — rendering and layout, the integrity strip and
+  the self-critique panel, citation-chip scroll and flash, and the export buttons (`.md`, `.docx`
+  and the PDF print document were each produced and inspected);
+- the `.md` export now carries a Sources appendix, which it did not at the time.
+
+**What has not changed:** none of that is an *automated* browser test. Every one of those checks
+was manual, so a visual or interaction regression would still go uncaught by `npm test`.
+
 The frontend was checked by `eslint`, `vite build`, `node --test` (`npm test` — the diagram
 repair against the real Mermaid parser, and the citation parsing the exports depend on), an SSR
 render of the Markdown path, and a parser pass over the generated diagrams — **but none of that
@@ -285,7 +299,7 @@ Ordered by how much they'd matter if this became more than a local tool.
 | 2 | **Auth is login-only** | No roles, sharing, teams or org scoping | Clerk Organizations + an `orgId` alongside `ownerId` |
 | 3 | **No local/offline mode** | A missing key means the server will not boot | Deliberate ([ADR-24](decisions.md#adr-24-delete-mock-mode-and-the-file-store)); a documented demo mode could return behind an explicit flag |
 | 4 | **Prompt injection from web content** | A hostile page could skew a report | Source allow-listing, injection classifiers, output review — all partial |
-| 5 | **Mongo driver never runtime-verified** | Unknown-unknowns in the adapter | Point `MONGODB_URI` at a cluster and run the same script |
+| 5 | ~~Mongo driver never runtime-verified~~ **Now in live use** — the app runs against Atlas and reports persist across reloads | The adapter has no test, so *edge cases* are unproven: a dropped connection mid-save, or a record written by an older schema | A connection-loss test around `save()`, and a read of a record written by an earlier schema |
 | 6 | **`list()` capped at 100** | Silent truncation for a user with a long history | Add pagination; make the cap explicit in the UI |
 | 7 | **Session tokens are the only auth signal** | A leaked token is valid until it expires | Short token lifetime is Clerk's default; add audience/org claims if this API is ever shared |
 | 8 | **No reconnecting SSE** | A dropped connection ends the run | Persist partial progress and offer `GET /api/research/:id` resume |

@@ -3,7 +3,9 @@
 React 19 + Vite 8 + Tailwind CSS v4 single-page client for MAD Researcher
 backend. It starts a run over SSE, streams the agent trace and the report as it
 is written, renders Markdown (with [Mermaid](https://mermaid.js.org) diagrams
-and clickable citation chips), and manages saved-report history.
+and clickable citation chips), and manages saved-report history. The UI is a
+warm, editorial theme built entirely from Tailwind tokens — see
+[Styling](#styling) and [Animation](#animation) below.
 
 ## Run
 
@@ -22,21 +24,25 @@ The API base URL comes from `VITE_API_URL` and defaults to
 
 ```
 src/
+├── main.jsx                # createRoot + ClerkProvider + LazyMotion
 ├── App.jsx                 # shell: header, query form, layout, tabs
 ├── api.js                  # POST-stream SSE parser + REST calls
-├── index.css               # Tailwind v4 import, theme tokens, report styles
+├── index.css               # Tailwind v4, theme tokens, identity rules, report styles
 ├── hooks/useResearch.js    # one-run state machine (idle → running → done/error)
 ├── lib/
 │   ├── citations.js        # [n] parsing; exports list cited sources only
 │   ├── mermaid.js          # repairs model-written diagrams before Mermaid parses them
 │   ├── cn.js               # class-name join helper
-│   ├── export.js           # .md download + print-to-PDF
+│   ├── export.js           # .md download + print-to-PDF (both with a sources appendix)
+│   ├── docx.js             # Markdown → .docx
+│   ├── motionFeatures.js   # the motion feature set, kept in its own chunk
 │   └── format.js           # hostOf / timeAgo / slugify / wordCount
 └── components/
-    ├── ui/                 # Button, Panel, Badge primitives
+    ├── ui/                 # Button · Panel · Badge · Mark · FadeBox · StatusPill · Reveal
+    ├── Landing.jsx         # signed-out marketing page
     ├── QueryForm.jsx       # topic input + examples + stop
-    ├── AgentTrace.jsx      # plan checklist and step-by-step agent log
-    ├── ReportView.jsx      # streamed report + export toolbar
+    ├── AgentTrace.jsx      # collapsible trace: step pill, plan checklist, steps
+    ├── ReportView.jsx      # streamed report (faded collapse) + export toolbar
     ├── SourcesPanel.jsx    # numbered source cards (citation jump targets)
     ├── HistoryPanel.jsx    # saved reports
     ├── Markdown.jsx        # react-markdown + GFM + citation chips
@@ -50,11 +56,26 @@ is needed. Design tokens live in `src/index.css`:
 
 - CSS custom properties (`--c-bg`, `--c-accent`, …) define the dark and light
   palettes; the light palette is applied automatically under
-  `prefers-color-scheme: light`.
+  `prefers-color-scheme: light`. Dark is the default.
+- The identity is a warm "reading room": ink on paper, one teal accent, amber for
+  annotations, with `Fraunces` (display), `Newsreader` (report prose) and
+  `Public Sans` (UI) loaded from Google Fonts in `index.html`.
 - `@theme inline` maps those variables onto utilities (`bg-surface`, `text-muted`,
-  `border-line`, `rounded-panel`, `shadow-panel`, …).
-- The rendered report (produced by `react-markdown`, so it can't carry utility
-  classes) is styled by the unlayered `.markdown` rules in the same file.
+  `border-line`, `rounded-panel`, `shadow-panel`, …). Components only ever name
+  tokens, so the palette is changed in one place rather than in each component.
+- A handful of unlayered rules carry what utilities cannot: the report's
+  `.markdown` typography, the annotation motif (`.marker`, `.sketch-rule`), the
+  live indicators (`.step-pill`, `.status-pill`), the `.fade-box` collapse with
+  its blur veil, and `.enter` for rows that stream in.
+
+## Animation
+
+Two systems, deliberately split. The app animates with CSS keyframes only —
+`.rise` when a report arrives, `.enter` for streamed rows, and the pulse/shimmer
+on the live indicators. The signed-out landing is the only place that uses a
+library: `motion`, through `m` + `LazyMotion` with the `domAnimation` feature set,
+dynamically imported via `lib/motionFeatures.js` so it lands in its own chunk.
+`prefers-reduced-motion` turns both off.
 
 ## Mermaid diagrams
 

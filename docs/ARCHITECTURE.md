@@ -311,7 +311,7 @@ frontend/
   src/
     main.jsx                       createRoot + ClerkProvider
     api.js                         SSE POST-stream parser + REST helpers (Bearer token)
-    index.css                      Tailwind import, theme tokens, .markdown styles
+    index.css                      Tailwind import, theme tokens, identity + report styles
     hooks/useResearch.js           run lifecycle state machine
     App.jsx                        signed-out → Landing; signed-in shell, tabs, format state
     lib/
@@ -332,7 +332,7 @@ frontend/
         StatusPill.jsx             the animated "which step is running" bubble
         Reveal.jsx                 reveal-on-scroll wrapper built on motion
       QueryForm.jsx                input, examples, run/stop
-      AgentTrace.jsx               phase badge, scope note, plan checklist, step trace
+      AgentTrace.jsx               collapsible trace: step pill, plan checklist, step log
       Landing.jsx                  signed-out marketing page
       ReportView.jsx               meta, toolbar (copy/.md/PDF/DOCX),
                                    integrity strip, self-critique disclosure

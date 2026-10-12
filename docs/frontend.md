@@ -53,7 +53,7 @@ instead of completing for a client that has gone away, and the next checkpoint
 flowchart TD
     APP["App.jsx<br/>health + history + tab state"]
     APP --> QF["QueryForm<br/>input, examples, run/stop"]
-    APP --> TR["AgentTrace<br/>phase badge, scope, plan checklist, steps"]
+    APP --> TR["AgentTrace<br/>step pill, scope, plan checklist, steps"]
     APP --> RV["ReportView<br/>integrity strip + self-critique panel"]
     APP --> SP["SourcesPanel<br/>dims uncited sources"]
     APP --> HP["HistoryPanel"]
@@ -140,10 +140,11 @@ for a print output that looks like a document, not a screenshot of a dashboard.
 **Citations in exports.** A citation used to render as a `<button onClick>` with no `href`,
 and the print window never included the sources list — so `[n]` in a saved PDF pointed at
 nothing. Citations are now real `<a href="#source-n">` elements (the click is still
-intercepted in-app so it scrolls the source panel instead of jumping), and both the print
-document and the DOCX append a **Sources** appendix carrying the same `#source-n` ids. Source
-titles and URLs are untrusted web text and are HTML-escaped before being interpolated into the
-print window, which shares this origin.
+intercepted in-app so it scrolls the source panel instead of jumping), and the print document,
+the `.docx` and the `.md` each append a **Sources** appendix — carrying the same `#source-n` ids
+in the HTML ones, and plain Markdown links in the `.md`. Source titles and URLs are untrusted
+web text and are HTML-escaped before being interpolated into the print window, which shares this
+origin.
 
 **The appendix lists cited sources only.** A run discovers more sources than it ends up
 citing, and the in-app panel keeps showing all of them (dimmed) because there they answer
@@ -151,8 +152,9 @@ citing, and the in-app panel keeps showing all of them (dimmed) because there th
 exports are built from `citedSources(sources, report)` — the report's own citation markers
 decide the list, using the same pattern that renders the chips ([ADR-13](decisions.md#adr-13-citations-inline-no-reference-list)).
 Numbers are not renumbered: the report says `[7]`, so the appendix keeps calling that source 7,
-gaps and all. A `.md` download carries no appendix (the report body is the report), and the
-diagram blocks in it are repaired on the way out (see below).
+gaps and all — in the `.md` too. The `.md` appendix is plain Markdown, so source titles and URLs
+are escaped on the way in: an unescaped `]` or `)` in a title would close the link early. The
+diagram blocks in the `.md` are repaired on the way out (see below).
 
 The `docx` builder is deliberately a small hand-written converter over the subset the writer
 actually emits (headings, paragraphs, lists, GFM tables, blockquotes, fenced code, Mermaid)
@@ -259,10 +261,12 @@ the built CSS for the emitted rule.
 "reading room": ink on paper, a single teal accent, amber for annotations; `Fraunces` for
 headings, `Newsreader` for report prose, `Public Sans` for UI. Because components only ever name
 tokens, changing the palette and type was a change to `index.css` plus one `<link>` in
-`index.html` — no component was rewritten to restyle it. Three more unlayered rules carry the
-identity: `.btn-primary` (its hover mixes toward the ink colour, so the label stays legible
-whether the accent is light or dark), and `.marker` / `.sketch-rule`, the hand-drawn annotation
-motif.
+`index.html` — no component was rewritten to restyle it. A handful of unlayered rules carry the
+identity and the interaction details: `.btn-primary` (its hover mixes toward the ink colour, so
+the label stays legible whether the accent is light or dark), `.marker` / `.sketch-rule` (the
+hand-drawn annotation motif), `.step-pill` and `.status-pill` (the animated live indicators),
+`.fade-box` (the clip, the blur veil and the `max-height` transition), and `.enter` (rows that
+stream in).
 - **Motion is two systems, deliberately split.** The signed-in app animates with CSS keyframes
 only — `.rise` when a report arrives, `.enter` for rows that stream in (a new source card, a trace
 step, a history entry), the status pulse, the step-pill shimmer. The

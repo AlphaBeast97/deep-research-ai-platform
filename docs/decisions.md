@@ -103,8 +103,8 @@ Each entry: the decision, what was rejected, why, and what it costs.
 - **Decision:** the writer emits `[n]` inline and is explicitly told not to append a references section.
 - **Rejected:** letting the model produce its own bibliography.
 - **Why:** the UI renders a canonical, always-correct source list from the actual retrieved data. A model-authored bibliography would duplicate it, could drift from the real sources, and would waste output tokens.
-- **Cost:** the report is only self-contained inside this app; a raw copy-paste loses the reference list. Acceptable — the `.md` export is a *report*, and the sources panel is the source of truth.
-- **Since:** the exports (PDF, `.docx`) append a Sources appendix so the inline markers resolve in the saved file, and it lists **only the sources the report cites** — `citedSources()` in `lib/citations.js`, using the same citation pattern that renders the chips. A source the report never references is evidence the *run* gathered, which belongs in the panel, not in a document someone keeps. Numbers are never renumbered, so the appendix keeps the numbers the report's markers use ([§13.5](frontend.md#135-export)).
+- **Cost:** the report is only self-contained inside this app; a raw copy-paste loses the reference list. Acceptable — the exports carry an appendix (see *Since*), and the sources panel is the source of truth.
+- **Since:** the exports (`.md`, PDF, `.docx`) append a Sources appendix so the inline markers resolve in the saved file, and it lists **only the sources the report cites** — `citedSources()` in `lib/citations.js`, using the same citation pattern that renders the chips. A source the report never references is evidence the *run* gathered, which belongs in the panel, not in a document someone keeps. Numbers are never renumbered, so the appendix keeps the numbers the report's markers use ([§13.5](frontend.md#135-export)). The `.md` appendix was added later than the other two: the `.md` had been left as "just the report", which meant its `[n]` markers pointed at a list that was not in the file.
 
 ### ADR-14: `react-markdown` instead of `innerHTML`
 
