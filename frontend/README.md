@@ -9,6 +9,8 @@ warm, editorial theme built entirely from Tailwind tokens — see
 
 ## Run
 
+Requires Node 20.19+ (pinned in `package.json` under `engines`).
+
 ```bash
 npm install
 npm run dev      # http://localhost:5173

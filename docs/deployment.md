@@ -162,69 +162,36 @@ raised from its 300 s default to at least 60 minutes, and max instances pinned t
 
 ### 22.5 The blueprint
 
-Save this as `render.yaml` in the repository root and create the Blueprint from the Render
-dashboard. Secrets are left as `sync: false`, which makes Render prompt for the value on the
-first sync instead of storing it in the repository.
+`render.yaml` is **committed at the repository root**, and it is the source of truth for the
+deploy — create the Blueprint from the Render dashboard and Render reads it directly. Four
+decisions in that file are worth reading it for:
 
-```yaml
-services:
-  # The API. One instance, long responses, health-checked.
-  - type: web
-    name: mad-researcher-api
-    runtime: node
-    rootDir: backend
-    plan: 0.5c-512mb            # 0.5 CPU / 512 MB — the $7/month tier; plan: free also works
-    buildCommand: npm ci
-    startCommand: npm start
-    healthCheckPath: /api/health
-    envVars:
-      - key: CLERK_PUBLISHABLE_KEY
-        sync: false             # prompted for on first sync; never committed
-      - key: CLERK_SECRET_KEY
-        sync: false
-      - key: MONGODB_URI
-        sync: false
-      - key: TAVILY_API_KEY
-        sync: false
-      - key: LLM_API_KEY
-        sync: false
-      - key: LLM_BASE_URL       # swap for your provider; empty means api.openai.com
-        value: https://generativelanguage.googleapis.com/v1beta/openai/
-      - key: LLM_MODEL
-        value: gemini-3.5-flash-lite
-      - key: LLM_MODEL_SMART
-        value: gemini-3.5-flash-lite
-      - key: CLIENT_ORIGIN      # must equal the static site's origin EXACTLY
-        value: https://research.example.com
+- **`plan: free` is explicit.** An omitted plan defaults to `0.5c-512mb`, the paid tier, so the $0
+  path has to say so. Static sites have no plan and never sleep.
+- **`CLIENT_ORIGIN` is derived, not typed.** R9 wants an exact origin, which is the value most
+  likely to be wrong by a character. It is a `fromService` reference to the static site's own
+  `RENDER_EXTERNAL_URL`, so renaming a service cannot silently break CORS. `VITE_API_URL` is
+  hardcoded instead, because it is baked in at build time and a reference that resolved empty
+  would build an SPA with no API URL at all.
+- **The secrets are `sync: false`** — Render prompts for them on the first sync, so nothing
+  sensitive is stored in the repository.
+- **The behaviour knobs are pinned to the values this project actually runs with.** Every one has
+  a default in `config.js`, but a deploy that quietly ran `RESEARCH_CONCURRENCY=3` while
+  development ran 6 would be a different product. `PORT` and `CLIENT_ORIGIN` are the two the file
+  deliberately does not pin: Render injects the port, and the origin is derived.
 
-  # The SPA. Built with the API URL baked in, served from a CDN.
-  - type: web
-    name: mad-researcher-web
-    runtime: static
-    rootDir: frontend
-    buildCommand: npm ci && npm run build
-    staticPublishPath: dist
-    routes:
-      - type: rewrite
-        source: /*
-        destination: /index.html
-    envVars:
-      - key: VITE_API_URL
-        value: https://mad-researcher-api.onrender.com
-      - key: VITE_CLERK_PUBLISHABLE_KEY
-        sync: false
-```
+Both `package.json` files pin Node (`>=20.19.0 <25`) — the floor Vite 8 imposes — so a future
+change to Render's default runtime cannot break the static build.
 
-Validate the file before syncing it — Render serves the Blueprint spec from SchemaStore.org
-for IDE validation and provides CLI and API validation endpoints, and plan names were changed
-in 2026 (hence the `0.5c-512mb` id rather than the older `starter`). Treat the YAML above as
-a checked starting point, not as gospel: the *shape* is first-party documented, the exact
-field spellings are worth one CLI validation pass.
+Validate the file before syncing it: Render serves the Blueprint spec from SchemaStore.org for IDE
+validation and provides CLI and API validation endpoints. The shape is first-party documented; the
+exact field spellings are worth one CLI validation pass.
 
 ### 22.6 Setup, in the order that avoids rework
 
-1. **Buy a domain first.** Nothing else can be finished without it: Clerk's production
-   instance needs it (R8), and every URL below depends on the final origin.
+1. **Buy a domain first** *(the paid path — the $0 variant at the end of this section skips
+   it)*. Nothing else can be finished without it: Clerk's production instance needs it (R8), and
+   every URL below depends on the final origin.
 2. **Clerk → create the production instance** and add the DNS records it issues. Then collect
    the production publishable and secret keys.
 3. **MongoDB Atlas → cluster + database user.** Under Network Access, either add a world-open
@@ -289,7 +256,7 @@ start at `LLM_MODEL` and `RESEARCH_CONCURRENCY`, not at the host.
 | Vercel: 300 s Hobby / 800 s Pro / 1800 s beta, HTTP/1.1 idle caveat | **High** | First-party Vercel docs |
 | Fly.io: ~60 s idle timeout, no request ceiling | **Medium** | Community threads and write-ups; no first-party doc found |
 | Clerk production requires your own domain and its DNS records | **High** | First-party Clerk deployment docs |
-| The blueprint above is *valid* | **Medium** | Shape is documented; field spellings deserve one CLI validation |
+| `render.yaml` is a valid Blueprint | **Medium** | Its shape is first-party documented and it parses as YAML; the field spellings still deserve one CLI validation pass |
 | DigitalOcean App Platform's request ceiling | **Unknown** | Docs page unreachable during this evaluation |
 
 All sources were read on **2026-10-11**: `render.com/docs/free`, `render.com/docs/web-services`,
@@ -314,6 +281,7 @@ All sources were read on **2026-10-11**: `render.com/docs/free`, `render.com/doc
 
 ---
 
-*Deployment status: this is a proposal, not a deployment. Nothing in the repository is
-provider-specific except the YAML above, and the app runs identically on any host that
-satisfies R1–R9.*
+*Deployment status: the blueprint is committed (`render.yaml`) and the app is deployment-ready,
+but no services have been created — that needs the operator's own Render, Clerk and Atlas
+accounts. Nothing else in the repository is provider-specific, and the app runs identically on any
+host that satisfies R1–R9.*

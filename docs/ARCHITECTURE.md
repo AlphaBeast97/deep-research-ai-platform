@@ -177,7 +177,7 @@ leave the server**. That is a hard architectural rule (see [§17](backend.md#17-
 | **M** | MongoDB | Mongoose against MongoDB Atlas — the only storage driver | ✅ |
 | **E** | Express | Express 4 + `cors` + `dotenv` | ✅ |
 | **R** | React | React 19 + Vite 8 SPA | ✅ |
-| **N** | Node.js | Node 20.19+ required — that floor is Vite 8's, not the backend's — developed and verified on Node 22, ESM (`"type": "module"`) | ✅ |
+| **N** | Node.js | Node 20.19+ required — that floor is Vite 8's, not the backend's — developed and verified on Node 22, ESM (`"type": "module"`), and pinned in both `package.json` files through `engines` | ✅ |
 
 **The M is no longer partial.** MongoDB used to be an optional adapter behind a facade; it is
 now the only store ([ADR-24](decisions.md#adr-24-delete-mock-mode-and-the-file-store)). Reports are
@@ -354,6 +354,10 @@ docs/                              the architecture record, split by module
   deployment.md                    §22     deployment options, recommendation, blueprint
 scripts/
   check-docs.mjs                   fact-checks this record against the code (`node scripts/check-docs.mjs`)
+```
+
+The Render Blueprint lives at the repository root (`render.yaml`) rather than inside any of the
+trees above; [§22.5](deployment.md#225-the-blueprint) documents it.
 ```
 
 ---

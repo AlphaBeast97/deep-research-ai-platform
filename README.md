@@ -98,6 +98,7 @@ reports coverage for the UI.
 ├── docs/                      # the architecture record — start at docs/ARCHITECTURE.md
 │   └── …                      # ARCHITECTURE · agents · backend · frontend · verification · decisions · deployment
 ├── scripts/check-docs.mjs     # fact-checks these docs against the code
+├── render.yaml                # Render Blueprint: the two free services (docs/deployment.md)
 └── frontend/
     ├── test/                    # node:test — diagram repair, citations, exports (npm test)
     └── src/
@@ -146,6 +147,14 @@ npm run dev               # http://localhost:5173
 ```
 
 Open **http://localhost:5173**, sign in, and ask a research question.
+
+### 4. Deploy
+
+`render.yaml` at the repository root declares the whole app on Render's free tier — the API as a
+web service, the SPA as a static site. See
+[docs/deployment.md](docs/deployment.md#226-setup-in-the-order-that-avoids-rework) for the setup
+order and the honest trade-offs: $0 means a Clerk *development* instance, a ~1 minute cold start
+after the API sleeps, and a rate-limited LLM tier.
 
 > **There is no mock mode.** If a required key is missing the backend prints the
 > list and refuses to start, rather than silently serving canned data.
