@@ -253,6 +253,16 @@ field spellings are worth one CLI validation pass.
   cold start *before* the research even begins — a demo URL that looks broken. Use the $7/mo
   tier for anything shared with people who did not build it.
 
+**The $0 variant.** Everything above assumes a paid Render instance and a Clerk *production*
+instance — and production is what forces a domain (R8). To stand the same two services up for
+nothing: keep `plan: free` on the API (an omitted plan defaults to the paid `0.5c-512mb`), and use
+the Clerk **development** instance the app already runs against locally (`pk_test_` / `sk_test_`),
+which does not require DNS records. The rest of the stack is free at this size — Atlas M0, Tavily's
+free credits, and an LLM free tier. What that trades away is real: Clerk's development limits, a
+cold start on the first request after the API sleeps, and an LLM tier that rate-limits (the
+provider's `429`, surfaced verbatim by the app) well before it runs out of quota. Treat it as a
+demo configuration. It is the configuration `render.yaml` at the repo root is written for.
+
 ### 22.7 What it costs
 
 | Setup | Monthly | Notes |

@@ -1,0 +1,70 @@
+# Render Blueprint — MAD Researcher (the §22.5 proposal, on the free tiers).
+# Dashboard → New → Blueprint → this repo. Secrets are `sync: false`, so Render
+# prompts for them on first sync and nothing sensitive lands in git.
+#
+# `plan: free` is not optional: an omitted plan defaults to 0.5c-512mb, which is
+# the paid tier. Static sites have no plan and never sleep.
+#
+# Free tier caveat: the API sleeps after 15 idle minutes (~1 min wake). Pre-warm it
+# before a demo. A deploy during a run kills that run — there is no resume.
+#
+# After the first sync, open the API's /api/health and confirm `missingKeys` is
+# empty. If Render had to suffix a service name (it does that when a name is
+# taken), the VITE_API_URL below is the one value that will need correcting.
+#
+# Demo-day knobs (API env, then set back): RESEARCH_MAX_ROUNDS=0, DEEP_FETCH=false.
+
+services:
+  # The API. One instance, long responses, health-checked.
+  - type: web
+    name: mad-researcher-api
+    runtime: node
+    rootDir: backend
+    plan: free
+    buildCommand: npm ci
+    startCommand: npm start
+    healthCheckPath: /api/health
+    envVars:
+      - key: CLERK_PUBLISHABLE_KEY
+        sync: false             # prompted for on first sync; never committed
+      - key: CLERK_SECRET_KEY
+        sync: false
+      - key: MONGODB_URI
+        sync: false
+      - key: TAVILY_API_KEY
+        sync: false
+      - key: LLM_API_KEY
+        sync: false
+      - key: LLM_BASE_URL       # your provider; empty means api.openai.com
+        value: https://generativelanguage.googleapis.com/v1beta/openai/
+      - key: LLM_MODEL
+        value: gemini-3.5-flash-lite
+      - key: LLM_MODEL_SMART
+        value: gemini-3.5-flash-lite
+      # CORS requires the SPA's origin *exactly*, character for character. Rather
+      # than hardcoding it (and having it drift whenever a service is renamed),
+      # pull it from the static site's own URL. If it reads empty after the first
+      # sync, run the Blueprint sync once more.
+      - key: CLIENT_ORIGIN
+        fromService:
+          type: web
+          name: mad-researcher-web
+          envVarKey: RENDER_EXTERNAL_URL
+
+  # The SPA. Built with the API URL and Clerk key baked in at build time.
+  - type: web
+    name: mad-researcher-web
+    runtime: static
+    rootDir: frontend
+    buildCommand: npm ci && npm run build
+    staticPublishPath: dist
+    routes:
+      - type: rewrite
+        source: /*
+        destination: /index.html
+    envVars:
+      # Baked into the SPA at build time, so it must be the API's public URL.
+      - key: VITE_API_URL
+        value: https://mad-researcher-api.onrender.com
+      - key: VITE_CLERK_PUBLISHABLE_KEY
+        sync: false

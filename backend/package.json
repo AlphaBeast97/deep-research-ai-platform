@@ -16,6 +16,9 @@
     "tavily"
   ],
   "license": "MIT",
+  "engines": {
+    "node": ">=20.19.0 <25"
+  },
   "dependencies": {
     "@clerk/express": "^2.1.78",
     "@tavily/core": "^0.5.6",
