@@ -1,6 +1,7 @@
 import { SignInButton, SignUpButton } from '@clerk/react'
 import Button from './ui/Button.jsx'
 import Mark from './ui/Mark.jsx'
+import Reveal from './ui/Reveal.jsx'
 
 const PIPELINE = [
   {
@@ -155,15 +156,22 @@ export default function Landing() {
           className="pointer-events-none absolute -top-16 left-[26%] h-72 w-72 -translate-x-1/2 rounded-full bg-accent/12 blur-3xl"
         />
         <div className="relative">
-          <h1 className="font-display text-[40px] leading-[1.04] tracking-tight text-strong sm:text-[56px]">
+          <Reveal
+            as="h1"
+            className="font-display text-[40px] leading-[1.04] tracking-tight text-strong sm:text-[56px]"
+          >
             Research that shows its work.
-          </h1>
-          <p className="mt-5 max-w-[560px] text-[16px] leading-[1.6] text-muted sm:text-[17px]">
+          </Reveal>
+          <Reveal
+            as="p"
+            delay={90}
+            className="mt-5 max-w-[560px] text-[16px] leading-[1.6] text-muted sm:text-[17px]"
+          >
             Ask a question. A team of agents plans the investigation, searches the web, reads whole
             pages rather than snippets, writes a cited report, then attacks its own draft before you
             ever see it.
-          </p>
-          <div className="mt-8 flex flex-wrap items-center gap-2.5">
+          </Reveal>
+          <Reveal delay={180} className="mt-8 flex flex-wrap items-center gap-2.5">
             <SignUpButton mode="modal">
               <Button variant="primary" size="lg">
                 Start researching free
@@ -174,14 +182,14 @@ export default function Landing() {
                 I already have an account
               </Button>
             </SignInButton>
-          </div>
-          <p className="mt-4 text-[13px] text-muted">
+          </Reveal>
+          <Reveal as="p" delay={260} className="mt-4 text-[13px] text-muted">
             Bring your own model and search keys — OpenAI is not required.
-          </p>
+          </Reveal>
         </div>
 
         {/* The product, in one note: a question and its cited answer. */}
-        <figure className="relative">
+        <Reveal as="figure" delay={140} className="relative">
           <div className="rounded-panel border border-line bg-surface p-5 shadow-panel">
             <p className="text-[12px] font-semibold text-muted">A question</p>
             <p className="mt-1.5 font-display text-[19px] leading-snug tracking-tight text-strong">
@@ -206,44 +214,59 @@ export default function Landing() {
           <figcaption className="mt-3 text-center text-[12px] text-muted">
             <span className="sketch-rule">Example output</span>
           </figcaption>
-        </figure>
+        </Reveal>
       </section>
 
       {/* ── What you get: one band, hairline-divided (not three boxes) ── */}
       <section className="mt-16 grid gap-px overflow-hidden rounded-panel border border-line bg-line sm:grid-cols-3">
-        {HIGHLIGHTS.map((item) => (
-          <div key={item.title} className="bg-surface p-6">
-            <span className="inline-grid h-10 w-10 place-items-center rounded-control border border-line bg-surface-2 text-accent">
-              {item.icon}
-            </span>
-            <h2 className="mt-3.5 font-display text-[17px] text-strong">{item.title}</h2>
-            <p className="mt-2 text-[13.5px] leading-[1.6] text-muted">{item.body}</p>
-          </div>
+        {HIGHLIGHTS.map((item, index) => (
+          <Reveal key={item.title} delay={index * 90} className="bg-surface">
+            <div className="group h-full p-6 transition-colors hover:bg-surface-2">
+              <span className="inline-grid h-10 w-10 place-items-center rounded-control border border-line bg-surface-2 text-accent transition-colors group-hover:border-accent/40">
+                {item.icon}
+              </span>
+              <h2 className="mt-3.5 font-display text-[17px] text-strong">{item.title}</h2>
+              <p className="mt-2 text-[13.5px] leading-[1.6] text-muted">{item.body}</p>
+            </div>
+          </Reveal>
         ))}
       </section>
 
       {/* ── The pipeline as a journey, not a grid of boxes ────── */}
       <section className="mt-16 rounded-panel border border-line bg-surface p-6 shadow-panel sm:p-10">
         <div className="mx-auto max-w-[640px]">
-          <h2 className="font-display text-[24px] tracking-tight text-strong sm:text-[26px]">
+          <Reveal
+            as="h2"
+            className="font-display text-[24px] tracking-tight text-strong sm:text-[26px]"
+          >
             One question in. A cited report out.
-          </h2>
-          <p className="mt-2 text-[14.5px] leading-[1.6] text-muted">
+          </Reveal>
+          <Reveal as="p" delay={80} className="mt-2 text-[14.5px] leading-[1.6] text-muted">
             Six phases, streamed live — nothing happens in a black box. It reads a page before it
             trusts it, and goes back for more when it is not sure.
-          </p>
+          </Reveal>
 
           <div className="relative mt-10">
             <span className="timeline-spine" aria-hidden="true" />
             <ol className="list-none p-0">
-              <li className="relative flex gap-5 pb-7">
+              <Reveal as="li" from="left" className="relative flex gap-5 pb-7">
                 <Marker className="bg-muted" />
                 <p className="pt-1.5 text-[14.5px] font-semibold text-strong">Your question</p>
-              </li>
+              </Reveal>
 
               {PIPELINE.map((phase, index) => (
-                <li key={phase.name} className="relative flex gap-5 pb-7">
-                  <span className={`timeline-node ${phase.node}`}>{index + 1}</span>
+                <Reveal
+                  as="li"
+                  key={phase.name}
+                  from="left"
+                  delay={index * 70}
+                  className="group relative flex gap-5 pb-7"
+                >
+                  <span
+                    className={`timeline-node ${phase.node} transition-transform duration-300 group-hover:scale-[1.08]`}
+                  >
+                    {index + 1}
+                  </span>
                   <div className="pt-0.5">
                     <div className="flex flex-wrap items-baseline gap-2">
                       <h3 className="font-display text-[17px] text-strong">{phase.name}</h3>
@@ -253,13 +276,13 @@ export default function Landing() {
                     </div>
                     <p className="mt-1 text-[14px] leading-[1.6] text-muted">{phase.detail}</p>
                   </div>
-                </li>
+                </Reveal>
               ))}
 
-              <li className="relative flex gap-5">
+              <Reveal as="li" from="left" className="relative flex gap-5">
                 <Marker className="h-[13px] w-[13px] bg-accent" />
                 <p className="pt-1.5 text-[14.5px] font-semibold text-accent">A cited report</p>
-              </li>
+              </Reveal>
             </ol>
           </div>
         </div>
@@ -267,18 +290,20 @@ export default function Landing() {
 
       {/* ── Closing CTA ──────────────────────────────────────── */}
       <section className="mt-16 text-center">
-        <h2 className="font-display text-[26px] tracking-tight text-strong">Ready when you are.</h2>
-        <p className="mx-auto mt-2 max-w-[520px] text-[14px] leading-[1.6] text-muted">
+        <Reveal as="h2" className="font-display text-[26px] tracking-tight text-strong">
+          Ready when you are.
+        </Reveal>
+        <Reveal as="p" delay={80} className="mx-auto mt-2 max-w-[520px] text-[14px] leading-[1.6] text-muted">
           Sign in and run your first question. Reports are saved to your account, so you can come
           back to them and export any of them at any time.
-        </p>
-        <div className="mt-6 flex justify-center">
+        </Reveal>
+        <Reveal delay={150} className="mt-6 flex justify-center">
           <SignUpButton mode="modal">
             <Button variant="primary" size="lg">
               Create your account
             </Button>
           </SignUpButton>
-        </div>
+        </Reveal>
       </section>
 
       <footer className="mt-16 border-t border-line-soft pt-6 text-center text-[13px] text-muted">
