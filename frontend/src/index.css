@@ -188,6 +188,17 @@
   }
 }
 
+/* Primary action. The accent is a light teal in dark mode and a dark
+   teal in light mode, so the label is always the page colour and hover
+   mixes toward the ink colour — legible in both themes, one rule. */
+.btn-primary {
+  background: var(--c-accent);
+  color: var(--c-bg);
+}
+.btn-primary:hover {
+  background: color-mix(in srgb, var(--c-accent) 84%, var(--c-strong));
+}
+
 /* ──────────────────────────────────────────────────────────────
    Rendered report (react-markdown output cannot carry utility
    classes per element, so the reading typography lives here).

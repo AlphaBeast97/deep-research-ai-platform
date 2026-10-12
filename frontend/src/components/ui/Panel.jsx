@@ -4,10 +4,7 @@ import { cn } from '../../lib/cn.js'
 export default function Panel({ as: Tag = 'section', className, children, ...props }) {
   return (
     <Tag
-      className={cn(
-        'rounded-panel border border-line bg-surface p-[18px] shadow-panel',
-        className,
-      )}
+      className={cn('rounded-panel border border-line bg-surface p-5 shadow-panel', className)}
       {...props}
     >
       {children}
@@ -15,13 +12,11 @@ export default function Panel({ as: Tag = 'section', className, children, ...pro
   )
 }
 
-/** Uppercase panel header with an optional right-aligned slot. */
+/** Panel header: a quiet editorial label with an optional right-aligned slot. */
 export function PanelHead({ title, children, className }) {
   return (
-    <header
-      className={cn('mb-3.5 flex items-center justify-between gap-3', className)}
-    >
-      <h2 className="text-[11px] font-semibold tracking-[0.14em] text-muted uppercase">
+    <header className={cn('mb-4 flex items-center justify-between gap-3', className)}>
+      <h2 className="font-display text-[15px] font-semibold tracking-tight text-strong">
         {title}
       </h2>
       {children}

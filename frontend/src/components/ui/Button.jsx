@@ -1,16 +1,17 @@
 import { cn } from '../../lib/cn.js'
 
 const BASE =
-  'inline-flex items-center justify-center gap-1.5 rounded-control border font-semibold ' +
-  'transition-[background,border-color,color,transform,opacity] duration-150 ' +
-  'active:translate-y-px disabled:cursor-not-allowed disabled:opacity-45'
+  'inline-flex cursor-pointer items-center justify-center gap-1.5 rounded-control border font-semibold ' +
+  'transition-[background-color,border-color,color,transform,box-shadow] duration-200 ' +
+  'active:translate-y-px disabled:cursor-not-allowed disabled:opacity-45 ' +
+  'disabled:active:translate-y-0'
 
+// `.btn-primary` owns its own background/colour so the label stays legible
+// in both themes (the accent is light in dark mode, dark in light mode).
 const VARIANTS = {
-  primary:
-    'border-transparent bg-gradient-to-br from-accent to-violet-600 text-white shadow-lg shadow-accent/30 hover:brightness-110',
-  danger: 'border-danger/45 bg-danger/15 text-danger hover:bg-danger/25',
-  ghost:
-    'border-line bg-surface-2 text-fg hover:border-accent hover:text-strong',
+  primary: 'border-transparent btn-primary shadow-panel',
+  danger: 'border-danger/35 bg-danger/10 text-danger hover:bg-danger/20',
+  ghost: 'border-line bg-surface text-fg hover:border-accent/60 hover:text-strong',
   plain: 'border-transparent bg-transparent text-muted hover:text-strong',
 }
 
