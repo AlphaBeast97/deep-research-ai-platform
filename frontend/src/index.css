@@ -1,42 +1,63 @@
 @import 'tailwindcss';
 
 /* ──────────────────────────────────────────────────────────────
-   Design tokens (dark by default, light via prefers-color-scheme).
-   Kept as plain custom properties so runtime theming stays simple;
-   `@theme inline` maps them onto Tailwind utilities such as
-   `bg-surface`, `text-muted`, `border-line`.
+   Design tokens — "Reading Room".
+
+   A warm-paper, editorial identity: ink on off-white, a single
+   teal accent, amber for annotations. Dark stays supported and is
+   still the default (`:root`), light via `prefers-color-scheme`,
+   matching how this project has always themed.
+
+   Token *names* are unchanged (`bg-surface`, `text-muted`,
+   `border-line`, `text-accent` …) so components restyle without
+   being touched — only the values here change.
    ────────────────────────────────────────────────────────────── */
 :root {
-  --c-bg: #0b0c10;
-  --c-inset: #111319;
-  --c-surface: #15171f;
-  --c-surface-2: #1a1d26;
-  --c-line: #262a36;
-  --c-line-soft: #1e2230;
-  --c-fg: #d7dae3;
-  --c-muted: #8b91a3;
-  --c-strong: #f4f5f8;
-  --c-accent: #a855f7;
-  --c-accent-2: #22d3ee;
-  --c-ok: #34d399;
-  --c-warn: #fbbf24;
-  --c-danger: #f87171;
-  --c-shadow: 0 12px 32px -12px rgba(0, 0, 0, 0.6);
+  --c-bg: #17150f;
+  --c-inset: #1d1a14;
+  --c-surface: #201d16;
+  --c-surface-2: #272319;
+  --c-line: #34302a;
+  --c-line-soft: #2a2620;
+  --c-fg: #dad4c8;
+  --c-muted: #9c9488;
+  --c-strong: #f6f2ea;
+  --c-accent: #34d3b4;
+  --c-accent-2: #6fc5e0;
+  --c-highlight: #f0b429;
+  --c-ok: #5fd39a;
+  --c-warn: #f0b429;
+  --c-danger: #f58c7f;
+  --c-planner: #9b8cff;
+  --c-researcher: #34d3b4;
+  --c-writer: #e0a94a;
+  --c-critic: #e07ba8;
+  --c-shadow: 0 16px 36px -18px rgba(0, 0, 0, 0.7);
   color-scheme: dark;
 }
 
 @media (prefers-color-scheme: light) {
   :root {
-    --c-bg: #f7f7fb;
-    --c-inset: #ffffff;
+    --c-bg: #f7f6f2;
+    --c-inset: #f2f0e9;
     --c-surface: #ffffff;
-    --c-surface-2: #f4f4f8;
-    --c-line: #e3e3ec;
-    --c-line-soft: #ececf3;
-    --c-fg: #3f4354;
-    --c-muted: #74798c;
-    --c-strong: #14151c;
-    --c-shadow: 0 12px 32px -16px rgba(24, 24, 40, 0.18);
+    --c-surface-2: #f6f4ee;
+    --c-line: #e7e2d8;
+    --c-line-soft: #f0ece4;
+    --c-fg: #4a443c;
+    --c-muted: #8a8177;
+    --c-strong: #1d1a16;
+    --c-accent: #0e7c6b;
+    --c-accent-2: #0e708c;
+    --c-highlight: #a9992a;
+    --c-ok: #157f3d;
+    --c-warn: #b45309;
+    --c-danger: #b42318;
+    --c-planner: #5b4bc4;
+    --c-researcher: #0e7c6b;
+    --c-writer: #a65a0a;
+    --c-critic: #a83a6b;
+    --c-shadow: 0 16px 36px -20px rgba(48, 40, 28, 0.22);
     color-scheme: light;
   }
 }
@@ -53,19 +74,23 @@
   --color-strong: var(--c-strong);
   --color-accent: var(--c-accent);
   --color-accent-2: var(--c-accent-2);
+  --color-highlight: var(--c-highlight);
   --color-ok: var(--c-ok);
   --color-warn: var(--c-warn);
   --color-danger: var(--c-danger);
-  --color-planner: #a855f7;
-  --color-researcher: #22d3ee;
-  --color-writer: #f59e0b;
-  --color-critic: #f472b6;
+  --color-planner: var(--c-planner);
+  --color-researcher: var(--c-researcher);
+  --color-writer: var(--c-writer);
+  --color-critic: var(--c-critic);
 
-  --font-sans: 'Inter', system-ui, 'Segoe UI', Roboto, sans-serif;
+  --font-sans: 'Public Sans', system-ui, -apple-system, 'Segoe UI', Roboto, sans-serif;
+  --font-display: 'Fraunces', Georgia, 'Times New Roman', serif;
+  --font-serif: 'Newsreader', Georgia, 'Times New Roman', serif;
   --font-mono: ui-monospace, 'SFMono-Regular', Consolas, monospace;
 
-  --radius-panel: 12px;
-  --radius-control: 8px;
+  --radius-panel: 16px;
+  --radius-control: 11px;
+  --radius-pill: 999px;
 
   --shadow-panel: var(--c-shadow);
 }
@@ -78,25 +103,35 @@
   }
 
   body {
-    @apply bg-bg text-fg font-sans text-[15px] leading-[1.55] antialiased;
-    background-image: radial-gradient(
-      1200px 600px at 15% -10%,
-      color-mix(in srgb, var(--c-accent) 14%, transparent),
-      transparent 60%
-    );
+    @apply bg-bg text-fg font-sans text-[15.5px] leading-[1.6] antialiased;
+    /* A warm, nearly-imperceptible wash of the two brand colours — the
+       page reads as paper rather than a flat fill. Fixed so it does not
+       slide under content on scroll. */
+    background-image:
+      radial-gradient(1100px 520px at 12% -8%, color-mix(in srgb, var(--c-accent) 8%, transparent), transparent 62%),
+      radial-gradient(900px 460px at 100% 0%, color-mix(in srgb, var(--c-highlight) 6%, transparent), transparent 58%);
+    background-attachment: fixed;
   }
 
   h1,
   h2,
   h3 {
-    @apply text-strong font-semibold;
+    @apply text-strong font-display font-semibold;
+    letter-spacing: -0.011em;
+  }
+
+  /* Keyboard focus is always visible; the accent ring is the one
+     interactive colour cue the palette reserves. */
+  :focus-visible {
+    outline: 2px solid var(--c-accent);
+    outline-offset: 2px;
+    border-radius: 6px;
   }
 
   ::selection {
-    @apply bg-accent text-white;
+    @apply bg-accent/25 text-strong;
   }
 
-  /* thin scrollbars that suit the dark panels */
   * {
     scrollbar-width: thin;
     scrollbar-color: var(--c-line) transparent;
@@ -114,30 +149,74 @@
 }
 
 /* ──────────────────────────────────────────────────────────────
-   Rendered report (produced by react-markdown, so it can't carry
-   utility classes on every element). Styled here in one place.
+   The annotation motif — the one deliberately "hand-made" moment.
+
+   `.marker` is a soft highlighter swipe; `.sketch-rule` is a
+   hand-drawn underline. Used sparingly (section labels, the
+   integrity byline, the landing hero), never as decoration.
+   ────────────────────────────────────────────────────────────── */
+.marker {
+  background: linear-gradient(
+    180deg,
+    transparent 54%,
+    color-mix(in srgb, var(--c-highlight) 32%, transparent) 54%,
+    color-mix(in srgb, var(--c-highlight) 32%, transparent) 94%,
+    transparent 94%
+  );
+  padding: 0 0.12em;
+}
+
+.sketch-rule {
+  position: relative;
+  display: inline-block;
+}
+.sketch-rule::after {
+  content: '';
+  position: absolute;
+  left: -2px;
+  right: -2px;
+  bottom: -7px;
+  height: 7px;
+  background-repeat: no-repeat;
+  background-size: 100% 100%;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 8' preserveAspectRatio='none'%3E%3Cpath d='M1 5.2C28 1.4 54 6.6 82 4.2 112 1.6 140 6.4 199 4.8' fill='none' stroke='%230e7c6b' stroke-width='2' stroke-linecap='round' opacity='0.75'/%3E%3C/svg%3E");
+}
+
+@media (prefers-color-scheme: dark) {
+  .sketch-rule::after {
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 8' preserveAspectRatio='none'%3E%3Cpath d='M1 5.2C28 1.4 54 6.6 82 4.2 112 1.6 140 6.4 199 4.8' fill='none' stroke='%2334d3b4' stroke-width='2' stroke-linecap='round' opacity='0.75'/%3E%3C/svg%3E");
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
+   Rendered report (react-markdown output cannot carry utility
+   classes per element, so the reading typography lives here).
+
+   Set as a *reading* document: Newsreader at a comfortable
+   measure, with the display serif reserved for headings.
    ────────────────────────────────────────────────────────────── */
 .markdown {
-  @apply text-[14.5px] leading-[1.68] break-words;
+  @apply font-serif text-[17px] leading-[1.72] break-words;
+  color: var(--c-fg);
 }
 .markdown > *:first-child {
   margin-top: 0;
 }
 .markdown h1 {
-  @apply text-[25px] tracking-tight mt-0 mb-3.5;
+  @apply font-display text-[30px] leading-[1.15] tracking-tight mt-0 mb-4;
 }
 .markdown h2 {
-  @apply text-lg mt-[26px] mb-2.5 pb-[7px] border-b border-line-soft;
+  @apply font-display text-[22px] leading-snug mt-10 mb-3 pb-2 border-b border-line-soft;
 }
 .markdown h3 {
-  @apply text-[15px] mt-[18px] mb-2;
+  @apply font-display text-[18px] mt-7 mb-2;
 }
 .markdown p {
-  @apply mb-3;
+  @apply mb-4;
 }
 .markdown ul,
 .markdown ol {
-  @apply mb-3 pl-[22px];
+  @apply mb-4 pl-[24px];
 }
 .markdown ul {
   list-style: disc;
@@ -146,54 +225,120 @@
   list-style: decimal;
 }
 .markdown li {
-  @apply mb-[5px];
+  @apply mb-[6px];
+}
+.markdown li::marker {
+  color: var(--c-muted);
 }
 .markdown blockquote {
-  @apply my-3 px-[15px] py-2.5 border-l-[3px] border-accent bg-surface-2 text-muted text-[13.5px] rounded-r-control;
+  @apply my-4 px-[18px] py-3 border-l-2 border-accent bg-surface-2 text-[16px] italic rounded-r-control;
 }
 .markdown table {
-  @apply w-full border-collapse my-3.5 text-[13px];
+  @apply w-full border-collapse my-4 font-sans text-[13.5px] leading-[1.5];
 }
 .markdown th,
 .markdown td {
-  @apply border border-line px-2.5 py-[7px] text-left;
+  @apply border-b border-line px-3 py-2 text-left align-top;
 }
-.markdown th {
-  @apply bg-surface-2 text-strong;
+.markdown thead th {
+  @apply border-b-2 border-line text-strong;
+}
+.markdown tbody tr:hover {
+  background: color-mix(in srgb, var(--c-surface-2) 60%, transparent);
 }
 .markdown a {
-  @apply text-accent-2;
+  @apply text-accent-2 underline decoration-from-font underline-offset-2;
+}
+.markdown code {
+  @apply font-mono text-[0.86em] rounded-[6px] border border-line-soft bg-surface-2 px-[5px] py-px;
+}
+.markdown pre code {
+  @apply border-0 bg-transparent p-0;
 }
 .markdown hr {
-  @apply my-6 border-line;
+  @apply my-8 border-line;
+}
+.markdown img {
+  @apply my-4 max-w-full rounded-control;
+}
+
+/* Horizontal scroll for wide report tables without moving the page
+   (the wrapper is emitted by Markdown.jsx). */
+.markdown .table-scroll {
+  @apply my-4 overflow-x-auto rounded-control border border-line;
+}
+.markdown .table-scroll table {
+  @apply my-0 border-0;
+}
+.markdown .table-scroll th,
+.markdown .table-scroll td {
+  @apply border-b border-line;
 }
 
 /* Source card highlight when a citation chip jumps to it.
    Deliberately unlayered: Tailwind's utilities layer would otherwise win over
    the card's `border-line-soft` / `bg-inset` classes. */
 .source-card.flash {
-  @apply border-accent bg-accent/15;
+  @apply border-accent bg-accent/12;
+  animation: flash 1.1s ease-out;
 }
 
 /* Mermaid diagram wrapper (see Mermaid.jsx) */
 .mermaid-figure {
-  @apply my-4 rounded-control border border-line bg-white p-3 overflow-x-auto;
+  @apply my-5 rounded-control border border-line bg-surface-2 p-3 overflow-x-auto;
 }
 .mermaid-figure svg {
   @apply mx-auto block max-w-full h-auto;
 }
 
 /* ──────────────────────────────────────────────────────────────
-   Animations used by the live badges / trace dots.
+   Motion. One orchestrated entrance (`.rise`), used on report
+   arrival; the live pulse for in-flight agents. Both collapse
+   under reduced-motion.
    ────────────────────────────────────────────────────────────── */
 @keyframes pulse {
   0%,
   100% {
     opacity: 1;
-    box-shadow: 0 0 0 0 color-mix(in srgb, var(--c-accent-2) 60%, transparent);
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--c-accent) 55%, transparent);
   }
   50% {
-    opacity: 0.5;
+    opacity: 0.45;
     box-shadow: 0 0 0 5px transparent;
+  }
+}
+
+@keyframes flash {
+  0% {
+    box-shadow: 0 0 0 0 color-mix(in srgb, var(--c-accent) 40%, transparent);
+  }
+  100% {
+    box-shadow: 0 0 0 8px transparent;
+  }
+}
+
+@keyframes rise {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+.rise {
+  animation: rise 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
   }
 }
