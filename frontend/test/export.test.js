@@ -24,7 +24,7 @@ for (const key of ['XMLSerializer', 'Blob', 'DOMParser', 'Node', 'Element', 'get
   if (dom.window[key]) globalThis[key] = dom.window[key]
 }
 
-const { printReport, sourcesSection } = await import('../src/lib/export.js')
+const { printReport, sourcesSection, buildMarkdown } = await import('../src/lib/export.js')
 const { buildDocxBlob } = await import('../src/lib/docx.js')
 
 const REPORT = '# Remote work\n\nOffice vacancy rose [1]. A second claim [3].'
@@ -110,4 +110,28 @@ test('a report that cites nothing produces no Sources section', async () => {
   const xml = readZipEntry(Buffer.from(await blob.arrayBuffer()), 'word/document.xml').toString('utf8')
   assert.equal(xml.includes('NEVER CITED'), false)
   assert.equal(xml.includes('CITED ONE'), false)
+})
+
+test('the .md export appends a Sources appendix with cited sources only', () => {
+  const md = buildMarkdown({ title: 'Report', report: REPORT, sources: SOURCES })
+  assert.match(md, /## Sources/)
+  assert.match(md, /CITED ONE/)
+  assert.match(md, /CITED THREE/)
+  assert.equal(md.includes('NEVER CITED'), false, 'an uncited source leaked into the .md')
+  assert.match(md, /\[3\]/, 'the inline marker should survive so the list resolves')
+})
+
+test('a .md for a report that cites nothing gets no Sources section', () => {
+  const md = buildMarkdown({ title: 'Report', report: 'No markers here.', sources: SOURCES })
+  assert.equal(md.includes('## Sources'), false)
+})
+
+test('the .md appendix escapes titles that would break link syntax', () => {
+  const md = buildMarkdown({
+    title: 'Report',
+    report: 'A claim [1].',
+    sources: [{ index: 1, title: 'A [b] (c)', url: 'https://a.example/x_(y)' }],
+  })
+  assert.match(md, /\[A \\\[b\\\] \(c\)\]/)
+  assert.equal(md.includes('x_(y)'), false, 'an unescaped paren would close the link early')
 })

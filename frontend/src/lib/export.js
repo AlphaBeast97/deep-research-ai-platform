@@ -15,9 +15,45 @@ const escapeHtml = (value) => String(value ?? '').replace(/[&<>"']/g, (ch) => ES
  * because the UI fixed it up does not leave the app broken: the `.md` is meant
  * to be opened elsewhere (GitHub renders Mermaid natively).
  */
-export function downloadMarkdown({ title, report }) {
+/**
+ * The Sources appendix for a `.md` download, as plain Markdown.
+ *
+ * The same rule as the printed PDF and the `.docx`: only the sources the report
+ * actually cites are listed, and the numbers are not renumbered, so a `[7]` in
+ * the text still resolves to source 7.
+ */
+export function markdownSources(sources = []) {
+  if (!sources.length) return ''
+  const items = sources
+    .map((s) => {
+      // Escape the two characters that would break Markdown link syntax.
+      const title = String(s.title || s.url || '').replace(/([[\]])/g, '\\$1')
+      const url = String(s.url || '').replace(/\)/g, '%29')
+      return `${s.index}. [${title}](${url}) — ${hostOf(s.url || '')}`
+    })
+    .join('\n')
+  return `\n\n---\n\n## Sources\n\n${items}\n`
+}
+
+/** Build the Markdown a `.md` download writes (report + cited-sources appendix). */
+export function buildMarkdown({ title, report, sources = [] }) {
   const body = `# ${title}\n\n${repairMermaidBlocks(report).replace(/^#\s.*\n/, '')}`
-  const blob = new Blob([body], { type: 'text/markdown;charset=utf-8' })
+  return body + markdownSources(citedSources(sources, report))
+}
+
+/**
+ * Trigger a browser download of the report as a Markdown file.
+ *
+ * Mermaid blocks are repaired on the way out, so a diagram that only renders
+ * because the UI fixed it up does not leave the app broken: the `.md` is meant
+ * to be opened elsewhere (GitHub renders Mermaid natively). The cited sources
+ * are appended as a plain list so the inline `[n]` markers resolve in a file
+ * that has no side panel.
+ */
+export function downloadMarkdown({ title, report, sources = [] }) {
+  const blob = new Blob([buildMarkdown({ title, report, sources })], {
+    type: 'text/markdown;charset=utf-8',
+  })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
   a.href = url

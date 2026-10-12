@@ -52,7 +52,7 @@ export default function ReportView({
     }
   }
 
-  const onExportMarkdown = () => downloadMarkdown({ title, report })
+  const onExportMarkdown = () => downloadMarkdown({ title, report, sources })
 
   // `report` goes to both exporters as well as `sources`: the Sources appendix
   // they write lists only the sources the report cites, and the report text is
