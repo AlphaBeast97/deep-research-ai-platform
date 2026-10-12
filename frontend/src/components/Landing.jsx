@@ -246,32 +246,40 @@ export default function Landing() {
               as="li"
               key={phase.name}
               delay={index * 60}
-              className="group grid gap-x-10 gap-y-3 border-t border-line-soft py-7 first:border-t-0 first:pt-0 sm:grid-cols-[minmax(0,210px)_minmax(0,1fr)]"
+              className="group relative border-t border-line-soft first:border-t-0"
             >
-              <div>
-                <div className="flex items-baseline gap-3">
-                  <span
-                    className={`font-display text-[30px] leading-none transition-transform duration-300 group-hover:scale-110 ${phase.tone}`}
-                  >
-                    {index + 1}
+              {/* Hover band: a rounded tint that extends past the content without
+                  touching the hairline divider. */}
+              <span
+                aria-hidden="true"
+                className="pointer-events-none absolute inset-y-1 -inset-x-4 rounded-control bg-surface-2 opacity-0 transition-opacity duration-300 group-hover:opacity-100"
+              />
+              <div className="relative grid gap-x-10 gap-y-3 py-7 sm:grid-cols-[minmax(0,210px)_minmax(0,1fr)]">
+                <div>
+                  <div className="flex items-baseline gap-3">
+                    <span
+                      className={`font-display text-[30px] leading-none transition-transform duration-300 group-hover:-translate-y-0.5 group-hover:scale-110 ${phase.tone}`}
+                    >
+                      {index + 1}
+                    </span>
+                    <h3 className="font-display text-[19px] tracking-tight text-strong transition-transform duration-300 group-hover:translate-x-0.5">
+                      {phase.name}
+                    </h3>
+                  </div>
+                  <span className={`mt-2 block text-[11.5px] font-semibold ${phase.tone}`}>
+                    {phase.agent}
                   </span>
-                  <h3 className="font-display text-[19px] tracking-tight text-strong">
-                    {phase.name}
-                  </h3>
                 </div>
-                <span className={`mt-2 block text-[11.5px] font-semibold ${phase.tone}`}>
-                  {phase.agent}
-                </span>
-              </div>
 
-              <div>
-                <p className="max-w-[560px] text-[14.5px] leading-[1.65] text-muted">
-                  {phase.detail}
-                </p>
-                <span className="mt-3.5 inline-flex items-center gap-2 rounded-full border border-line bg-surface-2 px-3 py-1.5 text-[12px] text-muted">
-                  <span className={`h-[6px] w-[6px] flex-none rounded-full ${phase.dot}`} />
-                  {phase.output}
-                </span>
+                <div>
+                  <p className="max-w-[560px] text-[14.5px] leading-[1.65] text-muted">
+                    {phase.detail}
+                  </p>
+                  <span className="mt-3.5 inline-flex items-center gap-2 rounded-full border border-line bg-surface px-3 py-1.5 text-[12px] text-muted transition-colors duration-300 group-hover:border-accent/40 group-hover:text-strong">
+                    <span className={`h-[6px] w-[6px] flex-none rounded-full ${phase.dot}`} />
+                    {phase.output}
+                  </span>
+                </div>
               </div>
             </Reveal>
           ))}
