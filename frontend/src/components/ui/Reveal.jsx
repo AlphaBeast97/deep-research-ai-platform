@@ -1,47 +1,47 @@
-import { useEffect, useRef, useState } from 'react'
-import { cn } from '../../lib/cn.js'
+import { m, useReducedMotion } from 'motion/react'
+
+/** Where a revealed element starts, per direction. */
+const FROM = {
+  up: { x: 0, y: 18 },
+  left: { x: -20, y: 0 },
+  right: { x: 20, y: 0 },
+}
 
 /**
- * Fades and slides its children into view the first time they scroll into
- * range — used for the landing's entrance, so the page assembles itself as you
- * read rather than arriving all at once.
+ * Fades and slides its children in the first time they scroll into view — the
+ * landing assembles itself as you read, rather than arriving all at once.
  *
- * IntersectionObserver only (no dependency), and the motion itself lives in CSS
- * so `prefers-reduced-motion` can switch it off in one place. Without an
- * observer (a test environment, or an old browser) the content simply shows.
+ * Built on `motion`'s `m` component, which pairs with the `LazyMotion` in
+ * `main.jsx` to pull in only the ~15 kB `domAnimation` feature set rather than
+ * the whole library. Under `prefers-reduced-motion` nothing animates: the
+ * element is rendered plainly rather than quickly.
  */
 export default function Reveal({
-  as: Tag = 'div',
+  as = 'div',
   from = 'up',
   delay = 0,
   className,
   children,
   ...props
 }) {
-  const ref = useRef(null)
-  const [shown, setShown] = useState(() => typeof IntersectionObserver === 'undefined')
+  const reduce = useReducedMotion()
+  const Tag = m[as] ?? m.div
 
-  useEffect(() => {
-    const el = ref.current
-    if (!el) return
-    const observer = new IntersectionObserver(
-      ([entry]) => {
-        if (entry.isIntersecting) {
-          setShown(true)
-          observer.disconnect()
-        }
-      },
-      { threshold: 0.15, rootMargin: '0px 0px -8% 0px' },
+  if (reduce) {
+    return (
+      <Tag className={className} {...props}>
+        {children}
+      </Tag>
     )
-    observer.observe(el)
-    return () => observer.disconnect()
-  }, [])
+  }
 
   return (
     <Tag
-      ref={ref}
-      className={cn('reveal', `reveal--${from}`, shown && 'reveal-is-in', className)}
-      style={delay ? { transitionDelay: `${delay}ms` } : undefined}
+      initial={{ opacity: 0, ...FROM[from] }}
+      whileInView={{ opacity: 1, x: 0, y: 0 }}
+      viewport={{ once: true, amount: 0.15, margin: '0px 0px -8% 0px' }}
+      transition={{ duration: 0.6, delay: delay / 1000, ease: [0.22, 0.61, 0.36, 1] }}
+      className={className}
       {...props}
     >
       {children}

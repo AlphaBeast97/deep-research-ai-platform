@@ -540,35 +540,8 @@
   }
 }
 
-/* ──────────────────────────────────────────────────────────────
-   Reveal on scroll (Reveal.jsx). The landing lifts its sections in
-   as they are scrolled to; each variant owns only its start state.
-   ────────────────────────────────────────────────────────────── */
-.reveal {
-  opacity: 0;
-  transition:
-    opacity 0.6s cubic-bezier(0.22, 0.61, 0.36, 1),
-    transform 0.6s cubic-bezier(0.22, 0.61, 0.36, 1);
-}
-.reveal--up {
-  transform: translateY(18px);
-}
-.reveal--left {
-  transform: translateX(-20px);
-}
-.reveal-is-in {
-  opacity: 1;
-  transform: none;
-}
-@media (prefers-reduced-motion: reduce) {
-  .reveal,
-  .reveal--up,
-  .reveal--left {
-    opacity: 1;
-    transform: none;
-    transition: none;
-  }
-}
+/* Reveal-on-scroll is driven by `motion` (see Reveal.jsx), so there are no
+   reveal rules here — the library owns the start state and the timing. */
 
 /* ──────────────────────────────────────────────────────────────
    Motion. One orchestrated entrance (`.rise`), used on report
