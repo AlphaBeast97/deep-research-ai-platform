@@ -13,18 +13,18 @@ export default function HistoryPanel({ reports, onOpen, onDelete, activeId }) {
       {reports.length === 0 ? (
         <p className="text-[13px] text-muted italic">Completed research is saved here.</p>
       ) : (
-        <ul className="flex max-h-[62vh] list-none flex-col gap-[7px] overflow-y-auto p-0">
+        <ul className="flex max-h-[62vh] list-none flex-col gap-2 overflow-y-auto p-0 pr-0.5">
           {reports.map((r) => (
             <li
               key={r.id}
               className={cn(
-                'flex items-center overflow-hidden rounded-control border bg-inset',
-                r.id === activeId ? 'border-accent' : 'border-line-soft',
+                'flex items-center overflow-hidden rounded-control border bg-inset transition-colors',
+                r.id === activeId ? 'border-accent' : 'border-line-soft hover:border-accent/50',
               )}
             >
               <button
                 type="button"
-                className="group flex min-w-0 flex-1 flex-col gap-0.5 border-none bg-transparent px-3 py-2.5 text-left text-inherit"
+                className="group flex min-w-0 flex-1 cursor-pointer flex-col gap-0.5 border-none bg-transparent px-3.5 py-2.5 text-left text-inherit"
                 onClick={() => onOpen(r.id)}
               >
                 <span className="truncate text-[13px] font-medium text-strong transition-colors group-hover:text-accent">
@@ -36,7 +36,7 @@ export default function HistoryPanel({ reports, onOpen, onDelete, activeId }) {
               </button>
               <button
                 type="button"
-                className="w-[34px] flex-none self-stretch border-none border-l border-line-soft bg-transparent text-[17px] text-muted transition-colors hover:bg-danger/15 hover:text-danger"
+                className="w-9 flex-none cursor-pointer self-stretch border-none border-l border-line-soft bg-transparent text-[17px] text-muted transition-colors hover:bg-danger/15 hover:text-danger"
                 aria-label="Delete report"
                 onClick={() => onDelete(r.id)}
               >

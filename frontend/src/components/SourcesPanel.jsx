@@ -17,10 +17,10 @@ export default function SourcesPanel({ sources, uncited = [] }) {
 
       {sources.length === 0 ? (
         <p className="text-[13px] text-muted italic">
-          Sources will appear here as agents find them.
+          Sources will appear here as the agents find them.
         </p>
       ) : (
-        <ol className="flex max-h-[62vh] list-none flex-col gap-2.5 overflow-y-auto p-0">
+        <ol className="flex max-h-[62vh] list-none flex-col gap-2.5 overflow-y-auto p-0 pr-0.5">
           {sources.map((s) => {
             const isUncited = uncitedSet.has(s.index)
             return (
@@ -32,12 +32,12 @@ export default function SourcesPanel({ sources, uncited = [] }) {
                   isUncited && 'opacity-65',
                 )}
               >
-                <span className="grid h-[22px] w-[22px] flex-none place-items-center rounded-md bg-accent/15 text-[11.5px] font-bold text-accent">
+                <span className="grid h-[22px] w-[22px] flex-none place-items-center rounded-lg bg-accent/12 text-[11.5px] font-bold text-accent">
                   {s.index}
                 </span>
                 <div className="min-w-0">
                   <a
-                    className="block text-[13px] font-medium break-words text-strong no-underline hover:underline"
+                    className="block text-[13px] font-medium break-words text-strong no-underline transition-colors hover:text-accent"
                     href={s.url}
                     target="_blank"
                     rel="noreferrer"
@@ -46,7 +46,9 @@ export default function SourcesPanel({ sources, uncited = [] }) {
                   </a>
                   <span className="text-[11.5px] text-muted">{hostOf(s.url)}</span>
                   {s.snippet && (
-                    <p className="mt-1 line-clamp-3 text-[12px] text-muted">{s.snippet}</p>
+                    <p className="mt-1 line-clamp-3 text-[12px] leading-[1.5] text-muted">
+                      {s.snippet}
+                    </p>
                   )}
                   {isUncited && (
                     <p className="mt-1 text-[11px] text-warn italic">
