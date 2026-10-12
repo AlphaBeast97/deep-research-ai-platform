@@ -15,7 +15,7 @@ against its own sources, **revises** it, and runs a **citation audit** before
 > (what the system is, its goals, its stack, and the file map), then splits by module:
 > [agent orchestration & prompts](docs/agents.md) · [backend](docs/backend.md) ·
 > [frontend](docs/frontend.md) · [measured verification & limitations](docs/verification.md) ·
-> [the 25 ADRs](docs/decisions.md) · [deployment proposal](docs/deployment.md).
+> [the 26 ADRs](docs/decisions.md) · [deployment proposal](docs/deployment.md).
 > Read it before changing anything structural.
 
 ---
@@ -309,6 +309,13 @@ request and then says nothing is indistinguishable from a slow one:
   normally milliseconds pass. Any frame re-arms the watchdog, so a
   slow-but-progressing report is never cut off, however long it takes; only real
   output moves it onto the tighter number.
+- **A stall is a failure, not a short report.** A stream the watchdog cuts off
+  raises: a stalled *revision* keeps the draft, and a stalled *draft* ends the run
+  with an `error` frame and nothing saved. That is the honest version of the
+  previous behaviour, where the partial text came back as if it had finished and
+  was persisted as a complete report — the price being that a stalled draft now
+  loses the research behind it
+  ([§20](docs/verification.md#20-known-limitations-and-honest-gaps) row 21).
 - **An empty response is an error, not an empty report.** Some reasoning models
   spend their entire budget thinking and return zero content tokens
   (`finish_reason: "length"`); that is reported by name, with the model, instead

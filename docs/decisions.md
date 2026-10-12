@@ -15,6 +15,7 @@ Each entry: the decision, what was rejected, why, and what it costs.
 - **Rejected:** Writing raw `fetch` calls; or assuming an OpenAI account.
 - **Why:** the SDK correctly handles streaming delta accumulation, retries, and error shapes — genuinely non-trivial code we don't want to own. The protocol is a de-facto standard.
 - **Cost:** a package named "openai" appears in `package.json`. This is cosmetic: `config.js` never requires an OpenAI key or default model. **Explicitly stated because it caused friction** — see the provider-neutral naming in [§10.2](backend.md#102-how-the-environment-resolves).
+- **Since:** one wait the SDK does **not** own turned out to matter — a stream that goes quiet after its headers, which the SDK's request timeout has already stopped watching — and neither does the fact that aborting such a stream does not arrive as an error. Both are now ours, explicitly: see [ADR-26](#adr-26-two-budgets-for-a-streamed-answer).
 
 ### ADR-02: Own the orchestration, no agent framework
 
@@ -255,5 +256,38 @@ Each entry: the decision, what was rejected, why, and what it costs.
   by the same single-string rule: the critic is told which format was requested and audits
   against *that* spec, so its `structure` check — including the length range it now enforces —
   moves whenever the format moves ([§8.5](agents.md#85-the-critic-prompt)).
+
+---
+
+### ADR-26: Two budgets for a streamed answer
+
+- **Decision:** a streamed call is bounded by two clocks, not one. `LLM_TIMEOUT_MS` covers the
+  wait for the **first** token — prompt processing, which on a revision means a prompt carrying
+  the whole draft — and `LLM_STREAM_IDLE_TIMEOUT_MS` covers silence **between** tokens. The
+  watchdog is armed once the headers land (before that the SDK's own timeout is still watching),
+  every frame re-arms it because any frame proves the provider is alive, and only real output —
+  content, or a provider's reasoning deltas — switches it from the first budget to the second. A
+  stall is reported as an error, and it is re-asserted *after* the stream ends as well as in the
+  `catch`, because aborting a stream does not reliably arrive as one.
+- **Rejected:** raising the single idle number, which was the first fix attempted. It makes a
+  working-but-slow model survive only by making a dead one hold the run for the same long
+  window, and it keeps charging the first-token wait to a number meant for gaps that are
+  normally milliseconds. Also rejected: retrying a stalled stream, which cannot work — a stream
+  that dies after the headers is already past the SDK's retry loop, and a retry replays a prompt
+  the size of a report.
+- **Why:** one number cannot describe two waits that differ by orders of magnitude, and getting
+  it wrong is expensive in both directions: too tight and a *thinking* model is reported as
+  unavailable on the last phase of a run that already spent minutes on searches and
+  extractions; too loose and a genuinely dead provider holds the connection. The failure that
+  prompted this was a revision cut off at 60 s on a reasoning model whose prompt held the entire
+  draft — the longest prompt in the system. Measured after the split: 7 s to first token under a
+  5 s idle budget threw at 5.4 s with one budget and answers at 7.4 s with two
+  ([§15.5](verification.md#155-the-stall-watchdog-measured)).
+- **Cost:** two knobs and a small state machine instead of one number, and a longer blind window
+  between tokens (180 s by default, up from 60 s). The more consequential cost is the honesty it
+  buys: a stalled **draft** now ends the run instead of persisting a truncated report as
+  complete, so the research behind it is lost — recorded as
+  [§20](verification.md#20-known-limitations-and-honest-gaps) row 21, alongside the fix sketch
+  that would soften it (one retry).
 
 ---

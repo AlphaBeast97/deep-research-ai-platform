@@ -197,7 +197,7 @@ place that enforces owner scoping rather than the one place that picks a driver.
 | Package | Version | Why this and not something else |
 |---|---|---|
 | `express` | ^4.21 | Ubiquitous, well-understood, and — critically — gives direct access to the raw response object, which is what SSE needs. A meta-framework would add indirection for zero benefit in a six-route API. |
-| `openai` | ^4.79 | Used **only** as an HTTP client for the `/v1/chat/completions` protocol. It handles streaming delta parsing, retries, and timeouts correctly. We never use an OpenAI account. See [ADR-01](decisions.md#adr-01-openai-sdk-as-transport-not-vendor). |
+| `openai` | ^4.79 | Used **only** as an HTTP client for the `/v1/chat/completions` protocol. It handles streaming delta parsing, retries, and timeouts correctly — with one documented exception: the SDK clears its timeout once response headers arrive, so a stream that then goes quiet, and the fact that aborting one does not raise, are ours to bound ([§10.4](backend.md#104-the-two-call-styles), [ADR-26](decisions.md#adr-26-two-budgets-for-a-streamed-answer)). We never use an OpenAI account. See [ADR-01](decisions.md#adr-01-openai-sdk-as-transport-not-vendor). |
 | `@tavily/core` | ^0.5.6 | Purpose-built for LLM research: returns cleaned, snippet-ready content rather than raw SERP HTML. See [§11](backend.md#11-search-tavily-and-normalisation). |
 | `@clerk/express` | ^2.1 | Verifies the Clerk session on every request and attaches `req.auth`. Reports are owner-scoped, so "unauthenticated request" has to be impossible rather than merely unlikely. See [ADR-23](decisions.md#adr-23-clerk-auth-with-owner-scoped-reports). |
 | `mongoose` | ^8.9 | Schema validation, `findOneAndUpdate` upserts, and connection management for the only store. See [ADR-24](decisions.md#adr-24-delete-mock-mode-and-the-file-store). |
@@ -342,7 +342,7 @@ docs/                              the architecture record, split by module
   backend.md                       §6, §9–§12, §14, §17–§18
   frontend.md                      §13     state machine, components, export, styling
   verification.md                  §15, §19–§20   measured runs, performance, limitations
-  decisions.md                     §16     the 25 ADRs
+  decisions.md                     §16     the 26 ADRs
   deployment.md                    §22     deployment options, recommendation, blueprint
 scripts/
   check-docs.mjs                   fact-checks this record against the code (`node scripts/check-docs.mjs`)
@@ -373,7 +373,10 @@ curl -sN -X POST localhost:5000/api/research/stream \
 ---
 
 *Every measured figure in this record came from live runs against a real LLM endpoint and
-the real Tavily API. Claims that could not be verified in this environment are listed as such
+the real Tavily API — apart from the watchdog timings in
+[§15.5](verification.md#155-the-stall-watchdog-measured), which come from a local server
+speaking the same protocol, because what is being measured there is a clock rather than a
+provider. Claims that could not be verified in this environment are listed as such
 in [§15.4](verification.md#154-what-could-not-be-verified). If you change a decision in
 [§16](decisions.md#16-the-decision-log), update the entry rather than deleting it — the reasoning is the
 asset.*

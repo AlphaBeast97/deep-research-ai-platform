@@ -217,11 +217,23 @@ the pipeline inserts a **separate** critique call with a hostile-auditor prompt,
   the gate skipped the revision pass entirely. A model's summary judgement about its own
   review is the least reliable part of the review. The verdict is now recorded as information
   for the reader; it is not a control-flow switch. ([ADR-21](decisions.md#adr-21-the-critique-is-advisory-the-revision-is-unconditional))
-- **The revision is guarded and has a fallback.** If the revision call throws or produces an
-  implausibly short document (`wordCount < 120`), the pipeline keeps the draft and records
-  `revised: false` rather than shipping a truncated report. The revision is an improvement
-  step, and an improvement step must never be able to make the output worse than not running
-  it.
+- **The revision is guarded and has a fallback.** If the revision call throws — including a
+  stream the stall watchdog cut off ([ADR-26](decisions.md#adr-26-two-budgets-for-a-streamed-answer))
+  — or produces an implausibly short document (`wordCount < 120`), the pipeline keeps the draft
+  and records `revised: false` rather than shipping a truncated report. The revision is an
+  improvement step, and an improvement step must never be able to make the output worse than not
+  running it. That guard needed one correction to actually hold: aborting a stream does not
+  reliably surface as an error, so a stalled revision used to return its partial text as though
+  it had finished — exactly the text `wordCount >= 120` would accept. The stall is now
+  re-asserted after the stream ends ([§15.5](verification.md#155-the-stall-watchdog-measured)),
+  and the same fix makes a stalled *draft* a failure rather than a short report persisted as
+  complete ([§20](verification.md#20-known-limitations-and-honest-gaps) row 21).
+- **The critique covers the draft, and only the draft.** The revision is not re-audited: the
+  only check it faces afterwards is the citation audit ([§7.8](#78-the-citation-audit)), which
+  counts citation numbers and cannot notice a claim the rewrite left uncited, an overreach it
+  introduced, or an issue it quietly skipped. So the rewrite is trusted more than the draft was
+  — which is backwards, and is recorded rather than papered over
+  ([§20](verification.md#20-known-limitations-and-honest-gaps) row 20).
 
 The UI surfaces all of this honestly: the report carries the critique verdict and an
 "audited" block, and the issues themselves are available in a disclosure panel. A report

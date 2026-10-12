@@ -373,6 +373,8 @@ is what `LLM_STREAM_IDLE_TIMEOUT_MS` bounds. Every frame re-arms the watchdog; o
 switches it from the first budget to the second. Retries are no help here either way: a stream
 that dies after the headers is already past the SDK's retry loop, which is why a stalled
 revision is degraded to the draft rather than silently retried ([§7.7](agents.md#77-critique-and-the-always-on-revision)).
+The trade-off is recorded in [ADR-26](decisions.md#adr-26-two-budgets-for-a-streamed-answer),
+and the split is measured rather than asserted in [§15.5](verification.md#155-the-stall-watchdog-measured).
 
 One trap in that mechanism is worth naming: aborting a stream does **not** reliably arrive as an
 error — the response body is closed and the SDK's iterator simply completes. The stall is
@@ -768,7 +770,7 @@ flowchart TD
     WRITE --> CRIT{"critique call"}
     CRIT -->|"throws"| REV
     CRIT -->|"ok"| REV{"revision stream<br/>(always runs)"}
-    REV -->|"throws or &lt;120 words"| KEEP["keep the draft;<br/>revised = false"]
+    REV -->|"throws (incl. a stall) or &lt;120 words"| KEEP["keep the draft;<br/>revised = false"]
     REV -->|"ok"| AUDIT["citation audit +<br/>sanitise"]
     KEEP --> AUDIT
     AUDIT -->|"ok"| SAVE{"db.save"}
@@ -788,9 +790,16 @@ Four tiers of failure handling, each deliberate:
    an empty or failed follow-up proposal ends the gap loop instead of the run; a failed
    critique skips straight to revision; a failed or degenerate revision keeps the draft. Each
    guard exists because the phase is an *enhancement* — the pipeline must still produce a
-   cited report if any of them misbehave.
+   cited report if any of them misbehave. A **stalled** revision counts as a failure, which
+   took an explicit fix to be true: aborting a stream does not reliably arrive as an error, so
+   the watchdog re-asserts the stall after the stream ends rather than letting the partial text
+   pass as a finished report ([§10.4](#104-the-two-call-styles)).
 4. **Pipeline failure is terminal but clean.** Any other throw is caught in the route,
-   emitted as an `error` frame, and the stream is closed. Missing API keys surface here.
+   emitted as an `error` frame, and the stream is closed. Missing API keys surface here. Since a
+   stalled draft is now a throw rather than a silently truncated report, a provider that goes
+   quiet mid-draft ends the run instead of persisting a short report under `status: "complete"`
+   — the more honest failure, but the research behind it is lost either way
+   ([§20](verification.md#20-known-limitations-and-honest-gaps) row 21).
 
 **Why 400 errors are sent *before* the SSE headers:** once `writeHead(200, text/event-stream)`
 is called you can no longer send a status code. Validation must happen first, which is why

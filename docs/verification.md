@@ -8,7 +8,10 @@
 ## 15. Verification: measured, not asserted
 
 Everything below was executed against the real Gemini endpoint and the real Tavily API, using
-the storage driver that existed at the time. No part of this section is inferred.
+the storage driver that existed at the time. No part of this section is inferred — with one
+labelled exception, [§15.5](#155-the-stall-watchdog-measured), which measures *timing* against a
+local server speaking the same SSE protocol. What is under measurement there is a clock, not a
+provider, and the section says what it therefore does not establish.
 
 > **Note:** these measurements predate the auth / MongoDB-only / mock-removal change. The
 > pipeline phases, timings and token counts are unaffected by it, but a line naming the
@@ -142,6 +145,40 @@ repair against the real Mermaid parser, and the citation parsing the exports dep
 render of the Markdown path, and a parser pass over the generated diagrams — **but none of that
 is the same as a person looking at the page, and this record does not claim otherwise.**
 
+### 15.5 The stall watchdog, measured
+
+Row 10 of [§20](#20-known-limitations-and-honest-gaps) used to say the watchdog's *timing* was
+unverified — only its signal merging had tests. That is now measured, for a reason: the failure
+it exists to prevent was observed in a real run (a revision stream cut off at 60 s on a
+reasoning model whose prompt held the whole draft, reported as "the model stopped sending
+output"), and a claim about a *timeout* is worth nothing without a clock behind it.
+
+**Method.** `chatStream` driven against a local HTTP server that speaks the OpenAI SSE protocol
+(`text/event-stream`, `data: {...}` frames, `[DONE]`), so the server decides exactly when each
+frame lands, and the scenarios run against both the one-budget code at `c306f2d` and the
+split-budget code. Both knobs floor at 5 s (`config.js`), so the budgets under test are 5 s and
+20 s rather than anything tighter:
+
+| Scenario | One budget | Two budgets |
+|---|---|---|
+| 7 s before the first token, 5 s idle budget | **threw at 5.4 s** — a model that was thinking, reported as unavailable | **answered at 7.4 s**, the wait charged to `LLM_TIMEOUT_MS` |
+| Empty keepalive frames at 3 s and 6 s, 5 s budget | threw at 5.5 s | answered at 6.6 s — any frame re-arms the watchdog |
+| Output, then silence past the budget | **returned `"Hello"` as a complete answer** | threw the stall message |
+| Headers, then nothing at all | — | the first-token message, naming the model that was called |
+
+The third row is why this section exists. Aborting a stream does **not** reliably arrive as an
+error: the body is closed and the SDK's iterator simply completes, so the `if (stalled)` in the
+`catch` never ran and the partial text was returned as a finished answer — the difference
+between a truncated report persisted as complete and a failure the run has to face. The return
+time tracked the budget exactly (5.3 s under a 5 s budget, 8.5 s under 8 s) on the old code as
+well, so it was pre-existing rather than a regression from the split.
+
+**What this does not establish.** Nothing here speaks to a real provider: whether 180 s of
+silence is enough for a given reasoning model is a property of that model and its endpoint, not
+of this code — the harness shows only that a long first token is no longer charged to the
+inter-token budget. The harness was a throwaway script rather than a committed test, so this
+section records a measurement, not a regression guard; row 10 stands in that respect.
+
 ---
 
 ## 19. Performance: where the time goes
@@ -253,7 +290,7 @@ Ordered by how much they'd matter if this became more than a local tool.
 | 7 | **Session tokens are the only auth signal** | A leaked token is valid until it expires | Short token lifetime is Clerk's default; add audience/org claims if this API is ever shared |
 | 8 | **No reconnecting SSE** | A dropped connection ends the run | Persist partial progress and offer `GET /api/research/:id` resume |
 | 9 | **Search quality unseen** | A run with no results still "succeeds" | Surface `gaps` prominently in the UI; warn when `gaps` is non-empty |
-| 10 | **Tests cover the pure logic, not the pipeline** | `npm test` (41 tests in six files) covers the citation audit and sanitiser, the source index, finding validation, the concurrency pool, critique normalisation and the stall watchdog's *signal merging* — the timing of the watchdog itself, and every network path, is only exercised by a live run | Stub `services/search.js` and `llm.js` behind a seam and drive `runResearch` against them |
+| 10 | **Tests cover the pure logic, not the pipeline** | `npm test` (41 tests in six files) covers the citation audit and sanitiser, the source index, finding validation, the concurrency pool, critique normalisation and the stall watchdog's *signal merging*. The watchdog's timing was measured against a fake provider ([§15.5](#155-the-stall-watchdog-measured)) but is not a committed test, and every network path is still exercised only by a live run | Commit the fake-provider harness as a test behind a seam in `llm.js`, and stub `services/search.js` to drive `runResearch` against it |
 | 11 | **Report diagrams are LLM-authored** | A malformed ```` ```mermaid ```` block shows the "could not render" fallback instead of a diagram | The fallback and the prompt constraints already contain it; a server-side `mermaid.parse` guard could reject bad blocks before persisting |
 | 12 | **The critic is the same model family as the writer** | A shared blind spot can survive an adversarial review | The critique is one prompt in one file; pointing it at a *different* provider is a small, high-value change |
 | 13 | **Deep fetch reads only the top-N ranked URLs** | A lower-ranked source with the best primary data is never read in full | Make `DEEP_FETCH_SOURCES` adaptive (e.g. read more when coverage is low) or rank by something other than Tavily's score |
@@ -264,5 +301,6 @@ Ordered by how much they'd matter if this became more than a local tool.
 | 18 | **The length ranges are prompt-level and unverified live** | Each format's word range is a string in `prompts.js` — the only mechanism, and one a model can ignore. The lengths measured in [§15.1](#151-end-to-end-live-run) (1,491 words analyst, 1,165 risk, 561 brief) predate the ranges, so nothing in this record shows a run that hit one | A live run against a real provider with the new prompts; if the number keeps being ignored, enforce it in code (count the words, then one expansion pass) rather than in prose |
 | 19 | **The PDF inherits the browser's print header and footer** | A saved PDF shows the page title and the page URL at the top of the sheet. Both are emitted by the browser's own print dialog: the PDF path writes the document and calls `win.print()` ([§13.5](frontend.md#135-export)), so no change to the export code removes them | Deselect "Headers and footers" in the print dialog — a per-machine setting; making it disappear unconditionally means generating the PDF in code rather than printing |
 | 20 | **The revision is never re-critiqued** | The critique runs once, against the draft ([§7.7](agents.md#77-critique-and-the-always-on-revision)); the revised report is then checked only by `auditCitations`, which sees citation *numbers* and cannot notice a new uncited claim, a fresh overreach, or an issue the revision silently failed to fix. The rewrite is trusted more than the draft was | Re-run the critique against the revision and keep the better of the two, or diff the two passes and re-audit only what changed |
+| 21 | **A stalled draft loses the run** | A watchdog cut-off on the draft stream is terminal ([§18.1](backend.md#181-what-happens-when-each-layer-fails)): the route emits an `error` frame and nothing is persisted, so minutes of search and extraction die with the draft. Accepting the truncated text instead was worse — it was saved as a complete report ([§15.5](#155-the-stall-watchdog-measured)) — but neither outcome is good | Retry the draft stream once (a stall is often a provider hiccup, not a dead model), or persist what arrived with `status: "truncated"` and say so in the library |
 
 ---
