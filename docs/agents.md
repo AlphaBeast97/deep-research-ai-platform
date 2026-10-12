@@ -70,10 +70,28 @@ flowchart TD
 | **⑤ Revise** | `LLM_MODEL_SMART` | 1 (streamed) | the draft + the critique | revised Markdown |
 | **⑥ Audit** | *none* | 0 | final report + sources | `{ references, coverage, invalid[], uncited[], invalidRemoved }` |
 
-**Total external calls per deep run:** `1 + N` to `1 + N + F` searches and `3 + N + F` to
-`5 + N + F` LLM calls. With defaults (`MAX_SUBQUESTIONS=5`, `RESEARCH_MAX_ROUNDS=2`) that is
-**up to 13 searches and 17 LLM calls**. The measured run in
-[§15.1](verification.md#151-end-to-end-live-run) used 13 searches and 13 LLM calls for a 1,491-word report.
+**Total external calls per deep run.** With `N` sub-questions, `R` gap rounds attempted and `F`
+follow-up queries issued (`R ≤ N × RESEARCH_MAX_ROUNDS`, `F ≤ R × MAX_FOLLOWUP_QUERIES`):
+
+- **Searches: `N + F`.** One per sub-question, plus one per follow-up query. The floor is `N`,
+  not `N + 1`: nothing outside the research phase touches the web.
+- **LLM calls with the critique pass on: `4 + N + 2R`.** `plan`, `draft`, `critique` and
+  `revision` are one call each; every round costs an extraction (skipped when the sub-question
+  found no sources at all) and every extra round costs one follow-up proposal. Turning the
+  critique off leaves `plan` and `draft` as the whole fixed set, so the same run costs
+  `2 + N + 2R`. Setting `MAX_FOLLOWUP_QUERIES=0` removes the proposal without a call of its own,
+  after which no gap round can fire: `R = 0`, and the count is `4 + N` — or `2 + N` with the
+  critique off as well.
+- **Page reads are a third class, not searches.** Up to `DEEP_FETCH_SOURCES` new pages per round,
+  logged as "full pages read". On top of all three, a call whose answer is not usable JSON gets
+  one repair attempt ([§10.5](backend.md#105-json-mode-defended-with-a-fallback)).
+
+With the defaults (`MAX_SUBQUESTIONS=6`, `RESEARCH_MAX_ROUNDS=2`, `MAX_FOLLOWUP_QUERIES=2`, the
+critique on) the ceiling for one run is **30 searches and 34 LLM calls**. The run measured in
+[§15.1](verification.md#151-end-to-end-live-run) reported 13 searches and 13 LLM calls, which
+does not reconcile with this inventory — its 5 sub-questions over 4 gap rounds imply 17 calls —
+and it predates later phases, so read it as a historical measurement rather than as a check on
+this table.
 
 The phases are not merely a diagram: they are emitted as `phase` events with measured
 durations, so the UI can show which stage is running and the record carries a phase

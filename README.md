@@ -283,10 +283,10 @@ All backend settings live in `backend/.env` (see `.env.example`):
 | `RESEARCH_CRITIQUE` | `true` | Run the critic → revisor pass before saving |
 | `CRITIC_FULL_TEXT_SOURCES` | `8` | Cited sources the critic reviews as full page text (0–16; `0` = snippets only) |
 | `RESEARCH_CONCURRENCY` | `3` | Sub-questions researched in parallel (1–6) |
-| `RUN_TIMEOUT_MS` | `900000` | Hard ceiling on one run, in ms |
-| `LLM_TIMEOUT_MS` | `120000` | Hard ceiling on one model request, in ms — and the budget for a streamed answer's wait for its first token |
-| `LLM_MAX_RETRIES` | `2` | Retries after a timeout/failure (worst case ≈ `(retries + 1) × LLM_TIMEOUT_MS`) |
-| `LLM_STREAM_IDLE_TIMEOUT_MS` | `180000` | How long a streamed answer may send nothing **between tokens** before it is cut off |
+| `RUN_TIMEOUT_MS` | `900000` | Hard ceiling on one run, in ms (1 min–1 h) |
+| `LLM_TIMEOUT_MS` | `120000` | Hard ceiling on one model request, in ms (5 s–10 min) — and the budget for a streamed answer's wait for its first token |
+| `LLM_MAX_RETRIES` | `2` | Retries after a timeout/failure (0–3; worst case ≈ `(retries + 1) × LLM_TIMEOUT_MS`) |
+| `LLM_STREAM_IDLE_TIMEOUT_MS` | `180000` | How long a streamed answer may send nothing **between tokens** before it is cut off (5 s–10 min) |
 
 To make runs much faster at the cost of depth, set `RESEARCH_MAX_ROUNDS=0`,
 `DEEP_FETCH=false` and `RESEARCH_CRITIQUE=false`.
