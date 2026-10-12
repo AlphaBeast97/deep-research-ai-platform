@@ -1,11 +1,11 @@
-# MAD Researcher — Deployment proposal
+# MAD Researcher — Deployment
 
 > Part of the [architecture record](ARCHITECTURE.md). §22 is the only section here that
 > did not exist in the single-file original; §1–§21 keep their numbering in the other files.
 
 ---
 
-## 22. Deployment proposal
+## 22. Deployment
 
 Where should this run in production? The answer is forced almost entirely by four
 properties of the code, so those come first. A platform that fails any of them fails *in the
@@ -189,6 +189,11 @@ exact field spellings are worth one CLI validation pass.
 
 ### 22.6 Setup, in the order that avoids rework
 
+The live deployment linked at the end of this section took the **$0 variant** (below): an
+`onrender.com` origin cannot be a Clerk *production* origin (R8 needs DNS records on a domain you
+own), so it runs on the Clerk **development** instance. The steps below are the paid production
+path; the variant at the end of the section is what shipped.
+
 1. **Buy a domain first** *(the paid path — the $0 variant at the end of this section skips
    it)*. Nothing else can be finished without it: Clerk's production instance needs it (R8), and
    every URL below depends on the final origin.
@@ -281,7 +286,8 @@ All sources were read on **2026-10-11**: `render.com/docs/free`, `render.com/doc
 
 ---
 
-*Deployment status: the blueprint is committed (`render.yaml`) and the app is deployment-ready,
-but no services have been created — that needs the operator's own Render, Clerk and Atlas
-accounts. Nothing else in the repository is provider-specific, and the app runs identically on any
-host that satisfies R1–R9.*
+*Deployment status: **live** at [mad-researcher-web.onrender.com](https://mad-researcher-web.onrender.com/),
+on Render's free tier, from the committed `render.yaml` — so the cold start, the free-instance
+sleep and the rate-limited LLM tier described above are the live reality rather than hypotheticals.
+Nothing else in the repository is provider-specific, and the app runs identically on any host that
+satisfies R1–R9.*

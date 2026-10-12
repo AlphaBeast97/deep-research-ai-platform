@@ -27,7 +27,7 @@ it just lives in another file now, and the links below carry you there.
 | [frontend.md](frontend.md) | Frontend | §13 |
 | [verification.md](verification.md) | Verification, performance and limitations | §15, §19, §20 |
 | [decisions.md](decisions.md) | Decision log (ADRs) | §16 |
-| [deployment.md](deployment.md) | Deployment proposal | §22 |
+| [deployment.md](deployment.md) | Deployment | §22 |
 
 Every mechanical claim the record makes — cross-file links and anchors, §-numbers,
 ADR numbers, env-var names and their documented defaults, API routes, report types,
@@ -44,7 +44,7 @@ code by `node scripts/check-docs.mjs`, which exits non-zero when any one has dri
 - [4. The MERN claim, audited](#4-the-mern-claim-audited)
 - [5. Stack choices and why](#5-stack-choices-and-why)
 - [21. Glossary](#21-glossary)
-- [22. Deployment proposal](deployment.md#22-deployment-proposal)
+- [22. Deployment](deployment.md#22-deployment)
 - [Appendix A — File map](#appendix-a--file-map)
 - [Appendix B — Quick reference](#appendix-b--quick-reference)
 
@@ -98,6 +98,10 @@ is returned.
 **One sentence of positioning:** *a transparent, self-hostable research assistant that
 works with any LLM provider, authenticates its users, and refuses to start rather than
 serve output it cannot ground.*
+
+**Live:** [mad-researcher-web.onrender.com](https://mad-researcher-web.onrender.com/) — this
+repository, built and served by the free-tier Blueprint in
+[§22](deployment.md#22-deployment).
 
 ---
 

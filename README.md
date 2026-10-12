@@ -1,22 +1,68 @@
-# <img src="frontend/public/favicon.svg" width="40" alt="" /> MAD Researcher — Multi-Agent Research
+<p align="center">
+  <img src="frontend/public/favicon.svg" width="72" alt="MAD Researcher" />
+</p>
 
-MAD Researcher is a MERN-stack platform for deep research. Sign in, ask a question, and a pipeline of
-AI agents **plans** the investigation, **searches the web**, **reads pages in
-full**, fills its own **gaps**, **drafts** a report, **critiques** that draft
-against its own sources, **revises** it, and runs a **citation audit** before
-**streaming the finished report** back to your browser token by token.
+<h1 align="center">MAD Researcher</h1>
+
+<p align="center">
+  <b>A deep-research agent that plans the investigation, searches the web, reads whole pages,<br />
+  attacks its own draft — and hands you a cited report you can check.</b>
+</p>
+
+<p align="center">
+  <a href="https://mad-researcher-web.onrender.com/"><img alt="Live demo on Render" src="https://img.shields.io/badge/live_demo-onrender-0e7c6b?style=for-the-badge" /></a>
+</p>
+
+<p align="center">
+  <img alt="Node 20.19+" src="https://img.shields.io/badge/node-20.19%2B-339933?logo=nodedotjs&logoColor=white" />
+  <img alt="React 19" src="https://img.shields.io/badge/react-19-61DAFB?logo=react&logoColor=black" />
+  <img alt="Vite 8" src="https://img.shields.io/badge/vite-8-646CFF?logo=vite&logoColor=white" />
+  <img alt="Tailwind v4" src="https://img.shields.io/badge/tailwind-v4-06B6D4?logo=tailwindcss&logoColor=white" />
+  <img alt="Express 4" src="https://img.shields.io/badge/express-4-000000?logo=express&logoColor=white" />
+  <img alt="MongoDB Atlas" src="https://img.shields.io/badge/mongodb-atlas-47A248?logo=mongodb&logoColor=white" />
+  <img alt="Clerk auth" src="https://img.shields.io/badge/auth-clerk-6C47FF" />
+  <img alt="License: MIT" src="https://img.shields.io/badge/license-MIT-3DA639" />
+</p>
+
+MAD Researcher is a MERN-stack platform for deep research. Sign in, ask a question, and a pipeline
+of AI agents **plans** the investigation, **searches the web**, **reads pages in full**, fills its
+own **gaps**, **drafts** a report, **critiques** that draft against its own sources, **revises** it,
+and runs a **citation audit** before **streaming the finished report** back to your browser token by
+token.
 
 - **M**ongoDB Atlas — the report store; every report is private to its owner
 - **E**xpress + Node backend running the agent pipeline
 - **R**eact (Vite) frontend with a live agent trace, behind **Clerk** auth
 - **N**ode.js 20.19+ (Vite 8's floor)
 
+> **Live:** [mad-researcher-web.onrender.com](https://mad-researcher-web.onrender.com/) — running on
+> **Render's free tier**, so the first request after 15 idle minutes waits about a minute for the
+> API to wake. That cold start is the platform, not the app.
+
 > 📐 **Architecture & decision record** — starts at [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 > (what the system is, its goals, its stack, and the file map), then splits by module:
 > [agent orchestration & prompts](docs/agents.md) · [backend](docs/backend.md) ·
 > [frontend](docs/frontend.md) · [measured verification & limitations](docs/verification.md) ·
-> [the 27 ADRs](docs/decisions.md) · [deployment proposal](docs/deployment.md).
+> [the 27 ADRs](docs/decisions.md) · [deployment](docs/deployment.md).
 > Read it before changing anything structural.
+
+<details>
+<summary><b>Contents</b></summary>
+
+- [How it works](#how-it-works)
+- [Project structure](#project-structure)
+- [Setup](#setup)
+- [Required keys](#required-keys)
+- [Authentication (Clerk)](#authentication-clerk)
+- [Bring your own model](#bring-your-own-model)
+- [Storage: MongoDB Atlas](#storage-mongodb-atlas)
+- [Configuration](#configuration)
+- [API](#api)
+- [Features](#features)
+- [Tech stack](#tech-stack)
+- [Notes & limitations](#notes--limitations)
+
+</details>
 
 ---
 
@@ -54,13 +100,13 @@ Every stage emits a Server-Sent Event, so the UI shows the agents working in
 real time rather than waiting for one final blob of text. Because the pipeline
 can take a few minutes, the `phase` event tells the UI which phase is running.
 
-| Agent | Job | Model |
-| --- | --- | --- |
-| **Planner** | Decomposes the topic into a scope note, an intent, searchable sub-questions and a report title | `LLM_MODEL_SMART` |
-| **Researcher** | Searches Tavily per sub-question (and reads the strongest pages in full), returns cited findings plus a self-reported coverage/confidence score. Sub-questions run in parallel (`RESEARCH_CONCURRENCY`) | `LLM_MODEL` |
-| **Follow-ups** | Reads low-coverage findings and proposes targeted follow-up search queries (the gap-filling loop) | `LLM_MODEL` |
-| **Writer** | Synthesizes all findings into a streamed Markdown report with inline `[n]` citations, then rewrites it during revision | `LLM_MODEL_SMART` |
-| **Critic** | Audits the draft against its own sources — unsupported claims, citation errors, missing angles — and returns a verdict | `LLM_MODEL_SMART` |
+| Agent          | Job                                                                                                                                                                                                     | Model             |
+| -------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------- | ----------------- |
+| **Planner**    | Decomposes the topic into a scope note, an intent, searchable sub-questions and a report title                                                                                                          | `LLM_MODEL_SMART` |
+| **Researcher** | Searches Tavily per sub-question (and reads the strongest pages in full), returns cited findings plus a self-reported coverage/confidence score. Sub-questions run in parallel (`RESEARCH_CONCURRENCY`) | `LLM_MODEL`       |
+| **Follow-ups** | Reads low-coverage findings and proposes targeted follow-up search queries (the gap-filling loop)                                                                                                       | `LLM_MODEL`       |
+| **Writer**     | Synthesizes all findings into a streamed Markdown report with inline `[n]` citations, then rewrites it during revision                                                                                  | `LLM_MODEL_SMART` |
+| **Critic**     | Audits the draft against its own sources — unsupported claims, citation errors, missing angles — and returns a verdict                                                                                  | `LLM_MODEL_SMART` |
 
 The `citations.js` module is a **pure** function (no model, no I/O): it scans the
 final text for `[n]` markers, drops any that don't resolve to a real source, and
@@ -122,11 +168,11 @@ reports coverage for the UI.
 
 ### 1. Create the two accounts you need
 
-| Service | What for | Where |
-| --- | --- | --- |
-| **Clerk** | Sign-in and per-user report ownership | https://dashboard.clerk.com |
-| **MongoDB Atlas** | Storing reports | https://www.mongodb.com/cloud/atlas |
-| **Tavily** | Web search + full-page extraction | https://app.tavily.com/home |
+| Service           | What for                              | Where                               |
+| ----------------- | ------------------------------------- | ----------------------------------- |
+| **Clerk**         | Sign-in and per-user report ownership | https://dashboard.clerk.com         |
+| **MongoDB Atlas** | Storing reports                       | https://www.mongodb.com/cloud/atlas |
+| **Tavily**        | Web search + full-page extraction     | https://app.tavily.com/home         |
 
 ### 2. Backend
 
@@ -165,14 +211,14 @@ after the API sleeps, and a rate-limited LLM tier.
 
 Grab each value, drop it in `.env`, and the backend will start.
 
-| Variable | Where to get it |
-| --- | --- |
-| `CLERK_PUBLISHABLE_KEY` | Clerk Dashboard → **API keys** → Quick Copy |
-| `CLERK_SECRET_KEY` | Clerk Dashboard → **API keys** → Quick Copy (server-only) |
-| `MONGODB_URI` | Atlas → **Connect → Drivers** (paste your DB user's password in) |
-| `LLM_API_KEY` | Your provider's dashboard — **any OpenAI-compatible provider**, see below |
-| `TAVILY_API_KEY` | https://app.tavily.com/home |
-| `VITE_CLERK_PUBLISHABLE_KEY` | Same publishable key, in **`frontend/.env`** |
+| Variable                     | Where to get it                                                           |
+| ---------------------------- | ------------------------------------------------------------------------- |
+| `CLERK_PUBLISHABLE_KEY`      | Clerk Dashboard → **API keys** → Quick Copy                               |
+| `CLERK_SECRET_KEY`           | Clerk Dashboard → **API keys** → Quick Copy (server-only)                 |
+| `MONGODB_URI`                | Atlas → **Connect → Drivers** (paste your DB user's password in)          |
+| `LLM_API_KEY`                | Your provider's dashboard — **any OpenAI-compatible provider**, see below |
+| `TAVILY_API_KEY`             | https://app.tavily.com/home                                               |
+| `VITE_CLERK_PUBLISHABLE_KEY` | Same publishable key, in **`frontend/.env`**                              |
 
 ---
 
@@ -211,18 +257,18 @@ LLM_MODEL_SMART=llama-3.3-70b-versatile
 Any provider exposing an OpenAI-compatible `/v1/chat/completions` endpoint works
 (model names must match that provider's own catalogue):
 
-| Provider | `LLM_BASE_URL` | Example model |
-| --- | --- | --- |
-| Groq | `https://api.groq.com/openai/v1` | `llama-3.3-70b-versatile` |
-| OpenRouter | `https://openrouter.ai/api/v1` | `anthropic/claude-3.5-sonnet` |
-| Together | `https://api.together.xyz/v1` | `meta-llama/Llama-3.3-70B-Instruct-Turbo` |
-| DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` |
-| Mistral | `https://api.mistral.ai/v1` | `mistral-large-latest` |
-| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-3.5-flash-lite` |
-| Ollama (local) | `http://localhost:11434/v1` | `llama3.1` |
-| LM Studio (local) | `http://localhost:1234/v1` | your loaded model |
-| vLLM (local) | `http://localhost:8000/v1` | your served model |
-| OpenAI (optional) | `https://api.openai.com/v1` | `gpt-4o-mini` / `gpt-4o` |
+| Provider          | `LLM_BASE_URL`                                             | Example model                             |
+| ----------------- | ---------------------------------------------------------- | ----------------------------------------- |
+| Groq              | `https://api.groq.com/openai/v1`                           | `llama-3.3-70b-versatile`                 |
+| OpenRouter        | `https://openrouter.ai/api/v1`                             | `anthropic/claude-3.5-sonnet`             |
+| Together          | `https://api.together.xyz/v1`                              | `meta-llama/Llama-3.3-70B-Instruct-Turbo` |
+| DeepSeek          | `https://api.deepseek.com/v1`                              | `deepseek-chat`                           |
+| Mistral           | `https://api.mistral.ai/v1`                                | `mistral-large-latest`                    |
+| Google Gemini     | `https://generativelanguage.googleapis.com/v1beta/openai/` | `gemini-3.5-flash-lite`                   |
+| Ollama (local)    | `http://localhost:11434/v1`                                | `llama3.1`                                |
+| LM Studio (local) | `http://localhost:1234/v1`                                 | your loaded model                         |
+| vLLM (local)      | `http://localhost:8000/v1`                                 | your served model                         |
+| OpenAI (optional) | `https://api.openai.com/v1`                                | `gpt-4o-mini` / `gpt-4o`                  |
 
 Notes:
 
@@ -245,9 +291,12 @@ a report store that silently disappears on restart is worse than a startup error
 you can fix.
 
 1. Create a free cluster at https://www.mongodb.com/cloud/atlas.
+
 2. Under **Database → Connect → Drivers**, copy the connection string
    (it looks like `mongodb+srv://user:pass@cluster0.xxxxx.mongodb.net/`).
+
 3. Add your IP to the Atlas access list (or allow `0.0.0.0/0` for dev).
+
 4. Paste it into `backend/.env`:
 
    ```env
@@ -268,34 +317,34 @@ Reports live in a `reports` collection, each tagged with its owner's `userId`.
 
 All backend settings live in `backend/.env` (see `.env.example`):
 
-| Variable | Default | Purpose |
-| --- | --- | --- |
-| `PORT` | `5000` | Backend port |
-| `CLIENT_ORIGIN` | `http://localhost:5173` | CORS allow-list |
-| `CLERK_PUBLISHABLE_KEY` | — | **Required.** Clerk publishable key |
-| `CLERK_SECRET_KEY` | — | **Required.** Clerk secret key (server-only) |
-| `MONGODB_URI` | — | **Required.** Atlas connection string |
-| `LLM_API_KEY` | — | Your provider's key (use a placeholder for local servers) |
-| `LLM_BASE_URL` | *(empty)* | Any OpenAI-compatible endpoint; empty = api.openai.com |
-| `LLM_MODEL` | `gpt-4o-mini` | Researcher / follow-up model (cheap, called most often) |
-| `LLM_MODEL_SMART` | `gpt-4o` | Planner, writer and critic model |
-| `LLM_JSON_MODE` | `true` | Set `false` if your provider rejects `response_format=json_object` |
-| `TAVILY_API_KEY` | — | **Required.** Powers search **and** full-page extraction |
-| `TAVILY_MAX_RESULTS` | `6` | Sources per search (clamped 1–12) |
-| `MAX_SUBQUESTIONS` | `6` | Planner breadth (clamped 1–8) |
-| `RESEARCH_DEPTH` | `deep` | `deep` uses Tavily's advanced search; `quick` is faster/cheaper |
-| `RESEARCH_MAX_ROUNDS` | `2` | Extra gap-filling search rounds per sub-question (0–3; `0` disables) |
-| `COVERAGE_FLOOR` | `60` | Self-reported coverage (%) below which a gap round fires (0–100) |
-| `MAX_FOLLOWUP_QUERIES` | `2` | Follow-up queries the researcher may propose per gap round (0–4) |
-| `DEEP_FETCH` | `true` | Read full page text for the strongest sources instead of snippets only |
-| `DEEP_FETCH_SOURCES` | `3` | Pages read in full per sub-question (0–8) |
-| `RESEARCH_CRITIQUE` | `true` | Run the critic → revisor pass before saving |
-| `CRITIC_FULL_TEXT_SOURCES` | `8` | Cited sources the critic reviews as full page text (0–16; `0` = snippets only) |
-| `RESEARCH_CONCURRENCY` | `3` | Sub-questions researched in parallel (1–6) |
-| `RUN_TIMEOUT_MS` | `900000` | Hard ceiling on one run, in ms (1 min–1 h) |
-| `LLM_TIMEOUT_MS` | `120000` | Hard ceiling on one model request, in ms (5 s–10 min) — and the budget for a streamed answer's wait for its first token |
-| `LLM_MAX_RETRIES` | `2` | Retries after a timeout/failure (0–3; worst case ≈ `(retries + 1) × LLM_TIMEOUT_MS`) |
-| `LLM_STREAM_IDLE_TIMEOUT_MS` | `180000` | How long a streamed answer may send nothing **between tokens** before it is cut off (5 s–10 min) |
+| Variable                     | Default                 | Purpose                                                                                                                 |
+| ---------------------------- | ----------------------- | ----------------------------------------------------------------------------------------------------------------------- |
+| `PORT`                       | `5000`                  | Backend port                                                                                                            |
+| `CLIENT_ORIGIN`              | `http://localhost:5173` | CORS allow-list                                                                                                         |
+| `CLERK_PUBLISHABLE_KEY`      | —                       | **Required.** Clerk publishable key                                                                                     |
+| `CLERK_SECRET_KEY`           | —                       | **Required.** Clerk secret key (server-only)                                                                            |
+| `MONGODB_URI`                | —                       | **Required.** Atlas connection string                                                                                   |
+| `LLM_API_KEY`                | —                       | Your provider's key (use a placeholder for local servers)                                                               |
+| `LLM_BASE_URL`               | *(empty)*               | Any OpenAI-compatible endpoint; empty = api.openai.com                                                                  |
+| `LLM_MODEL`                  | `gpt-4o-mini`           | Researcher / follow-up model (cheap, called most often)                                                                 |
+| `LLM_MODEL_SMART`            | `gpt-4o`                | Planner, writer and critic model                                                                                        |
+| `LLM_JSON_MODE`              | `true`                  | Set `false` if your provider rejects `response_format=json_object`                                                      |
+| `TAVILY_API_KEY`             | —                       | **Required.** Powers search **and** full-page extraction                                                                |
+| `TAVILY_MAX_RESULTS`         | `6`                     | Sources per search (clamped 1–12)                                                                                       |
+| `MAX_SUBQUESTIONS`           | `6`                     | Planner breadth (clamped 1–8)                                                                                           |
+| `RESEARCH_DEPTH`             | `deep`                  | `deep` uses Tavily's advanced search; `quick` is faster/cheaper                                                         |
+| `RESEARCH_MAX_ROUNDS`        | `2`                     | Extra gap-filling search rounds per sub-question (0–3; `0` disables)                                                    |
+| `COVERAGE_FLOOR`             | `60`                    | Self-reported coverage (%) below which a gap round fires (0–100)                                                        |
+| `MAX_FOLLOWUP_QUERIES`       | `2`                     | Follow-up queries the researcher may propose per gap round (0–4)                                                        |
+| `DEEP_FETCH`                 | `true`                  | Read full page text for the strongest sources instead of snippets only                                                  |
+| `DEEP_FETCH_SOURCES`         | `3`                     | Pages read in full per sub-question (0–8)                                                                               |
+| `RESEARCH_CRITIQUE`          | `true`                  | Run the critic → revisor pass before saving                                                                             |
+| `CRITIC_FULL_TEXT_SOURCES`   | `8`                     | Cited sources the critic reviews as full page text (0–16; `0` = snippets only)                                          |
+| `RESEARCH_CONCURRENCY`       | `3`                     | Sub-questions researched in parallel (1–6)                                                                              |
+| `RUN_TIMEOUT_MS`             | `900000`                | Hard ceiling on one run, in ms (1 min–1 h)                                                                              |
+| `LLM_TIMEOUT_MS`             | `120000`                | Hard ceiling on one model request, in ms (5 s–10 min) — and the budget for a streamed answer's wait for its first token |
+| `LLM_MAX_RETRIES`            | `2`                     | Retries after a timeout/failure (0–3; worst case ≈ `(retries + 1) × LLM_TIMEOUT_MS`)                                    |
+| `LLM_STREAM_IDLE_TIMEOUT_MS` | `180000`                | How long a streamed answer may send nothing **between tokens** before it is cut off (5 s–10 min)                        |
 
 To make runs much faster at the cost of depth, set `RESEARCH_MAX_ROUNDS=0`,
 `DEEP_FETCH=false` and `RESEARCH_CRITIQUE=false`.
@@ -342,32 +391,32 @@ The frontend reads `VITE_API_URL` and `VITE_CLERK_PUBLISHABLE_KEY` from
 
 All research routes require a Clerk session (`Authorization: Bearer <token>`).
 
-| Method | Route | Auth | Description |
-| --- | --- | --- | --- |
-| `GET` | `/api/health` | public | Mode, storage driver, models, depth knobs, missing keys |
-| `POST` | `/api/research/stream` | ✅ | Run the pipeline, stream SSE events. Body: `{ "query": "...", "reportType": "analyst" }` |
-| `GET` | `/api/research/types` | ✅ | The selectable report formats (metadata only — no prompt text) |
-| `GET` | `/api/research` | ✅ | The caller's report history (newest first, summaries) |
-| `GET` | `/api/research/:id` | ✅ | Full stored report (only if the caller owns it) |
-| `DELETE` | `/api/research/:id` | ✅ | Delete one of the caller's reports |
+| Method   | Route                  | Auth   | Description                                                                              |
+| -------- | ---------------------- | ------ | ---------------------------------------------------------------------------------------- |
+| `GET`    | `/api/health`          | public | Mode, storage driver, models, depth knobs, missing keys                                  |
+| `POST`   | `/api/research/stream` | ✅      | Run the pipeline, stream SSE events. Body: `{ "query": "...", "reportType": "analyst" }` |
+| `GET`    | `/api/research/types`  | ✅      | The selectable report formats (metadata only — no prompt text)                           |
+| `GET`    | `/api/research`        | ✅      | The caller's report history (newest first, summaries)                                    |
+| `GET`    | `/api/research/:id`    | ✅      | Full stored report (only if the caller owns it)                                          |
+| `DELETE` | `/api/research/:id`    | ✅      | Delete one of the caller's reports                                                       |
 
 **SSE event types** (each frame is `data: {...}`) — 13 in total:
 
-| Event | Payload | Purpose |
-| --- | --- | --- |
-| `meta` | `{ query, model, smartModel, depth, critique, deepFetch, maxRounds, reportType }` | Run begins; reports the active model, depth settings and chosen format |
-| `phase` | `{ phase }` | Entering a phase (`plan`/`research`/`draft`/`critique`/`revision`/`audit`). Durations land in the record's `phases[]` |
-| `status` | `{ message }` | Human-readable progress line |
-| `plan` | `{ title, scope, subQuestions }` | Planner output |
-| `step` | `{ step }` | Fine-grained agent trace entry |
-| `sources` | `{ sources, total }` | Newly discovered sources |
-| `findings` | `{ subQuestion, extraction }` | Cited findings (with coverage/confidence) |
-| `token` | `{ text }` | A streamed chunk of the report |
-| `critique` | `{ critique }` | The critic's verdict + issues |
-| `report-reset` | `{}` | Discard the draft shown so far — a revision is about to stream |
-| `audit` | `{ audit }` | Citation audit: coverage, uncited, invalid, removed |
-| `done` | `{ record }` | Final persisted record |
-| `error` | `{ message }` | Terminal failure |
+| Event          | Payload                                                                           | Purpose                                                                                                               |
+| -------------- | --------------------------------------------------------------------------------- | --------------------------------------------------------------------------------------------------------------------- |
+| `meta`         | `{ query, model, smartModel, depth, critique, deepFetch, maxRounds, reportType }` | Run begins; reports the active model, depth settings and chosen format                                                |
+| `phase`        | `{ phase }`                                                                       | Entering a phase (`plan`/`research`/`draft`/`critique`/`revision`/`audit`). Durations land in the record's `phases[]` |
+| `status`       | `{ message }`                                                                     | Human-readable progress line                                                                                          |
+| `plan`         | `{ title, scope, subQuestions }`                                                  | Planner output                                                                                                        |
+| `step`         | `{ step }`                                                                        | Fine-grained agent trace entry                                                                                        |
+| `sources`      | `{ sources, total }`                                                              | Newly discovered sources                                                                                              |
+| `findings`     | `{ subQuestion, extraction }`                                                     | Cited findings (with coverage/confidence)                                                                             |
+| `token`        | `{ text }`                                                                        | A streamed chunk of the report                                                                                        |
+| `critique`     | `{ critique }`                                                                    | The critic's verdict + issues                                                                                         |
+| `report-reset` | `{}`                                                                              | Discard the draft shown so far — a revision is about to stream                                                        |
+| `audit`        | `{ audit }`                                                                       | Citation audit: coverage, uncited, invalid, removed                                                                   |
+| `done`         | `{ record }`                                                                      | Final persisted record                                                                                                |
+| `error`        | `{ message }`                                                                     | Terminal failure                                                                                                      |
 
 ---
 
@@ -403,16 +452,16 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
 
 ## Tech stack
 
-| Layer | Choice |
-| --- | --- |
-| Backend | Node 20.19+ (Vite 8's floor), Express 4, ES modules |
-| Auth | Clerk (`@clerk/express`, `@clerk/react`) |
-| Agents | Any OpenAI-compatible endpoint via the OpenAI SDK (`LLM_BASE_URL`) |
-| Search | Tavily (`@tavily/core`) — search + full-page extraction |
-| Storage | MongoDB Atlas via Mongoose (required) |
-| Frontend | React 19, Vite 8, Tailwind CSS v4 |
-| Animation | `motion` — the landing's scroll reveals only (code-split) |
-| Report rendering | `react-markdown` + `remark-gfm`, `mermaid` for diagrams |
+| Layer            | Choice                                                             |
+| ---------------- | ------------------------------------------------------------------ |
+| Backend          | Node 20.19+ (Vite 8's floor), Express 4, ES modules                |
+| Auth             | Clerk (`@clerk/express`, `@clerk/react`)                           |
+| Agents           | Any OpenAI-compatible endpoint via the OpenAI SDK (`LLM_BASE_URL`) |
+| Search           | Tavily (`@tavily/core`) — search + full-page extraction            |
+| Storage          | MongoDB Atlas via Mongoose (required)                              |
+| Frontend         | React 19, Vite 8, Tailwind CSS v4                                  |
+| Animation        | `motion` — the landing's scroll reveals only (code-split)          |
+| Report rendering | `react-markdown` + `remark-gfm`, `mermaid` for diagrams            |
 
 ## Notes & limitations
 

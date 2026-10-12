@@ -1,4 +1,4 @@
-# Render Blueprint — MAD Researcher (the §22.5 proposal, on the free tiers).
+# Render Blueprint — MAD Researcher (§22.5, on the free tiers).
 # Dashboard → New → Blueprint → this repo. Secrets are `sync: false`, so Render
 # prompts for them on first sync and nothing sensitive lands in git.
 #
