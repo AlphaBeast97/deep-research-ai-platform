@@ -20,7 +20,7 @@ export default function SourcesPanel({ sources, uncited = [] }) {
           Sources will appear here as the agents find them.
         </p>
       ) : (
-        <ol className="flex max-h-[62vh] list-none flex-col gap-2.5 overflow-y-auto p-0 pr-0.5">
+        <ol className="flex max-h-[62vh] list-none flex-col gap-2.5 overflow-y-auto py-1 pr-0.5">
           {sources.map((s) => {
             const isUncited = uncitedSet.has(s.index)
             return (

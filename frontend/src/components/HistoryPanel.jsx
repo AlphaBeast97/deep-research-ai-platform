@@ -13,7 +13,7 @@ export default function HistoryPanel({ reports, onOpen, onDelete, activeId }) {
       {reports.length === 0 ? (
         <p className="text-[13px] text-muted italic">Completed research is saved here.</p>
       ) : (
-        <ul className="flex max-h-[62vh] list-none flex-col gap-2 overflow-y-auto p-0 pr-0.5">
+        <ul className="flex max-h-[62vh] list-none flex-col gap-2 overflow-y-auto py-1 pr-0.5">
           {reports.map((r) => (
             <li
               key={r.id}
