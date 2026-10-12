@@ -359,6 +359,91 @@
 }
 
 /* ──────────────────────────────────────────────────────────────
+   The centred status bubble shown while a run is in flight: a
+   pulsing dot, a slow shimmer across the pill, and a cross-fading
+   message.
+   ────────────────────────────────────────────────────────────── */
+.status-pill {
+  position: relative;
+  display: inline-flex;
+  max-width: 100%;
+  align-items: center;
+  gap: 10px;
+  overflow: hidden;
+  border: 1px solid var(--c-line);
+  border-radius: 999px;
+  background: var(--c-surface-2);
+  padding: 9px 18px 9px 15px;
+  color: var(--c-strong);
+  font-size: 13.5px;
+  font-weight: 500;
+  box-shadow: var(--c-shadow);
+}
+.status-pill__dot {
+  flex: none;
+  height: 8px;
+  width: 8px;
+  border-radius: 999px;
+  background: var(--c-accent);
+  animation: status-pulse 1.6s ease-in-out infinite;
+}
+.status-pill__text {
+  min-width: 0;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+  text-align: left;
+  line-height: 1.45;
+  animation: status-in 0.28s ease both;
+}
+.status-pill::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background: linear-gradient(
+    100deg,
+    transparent 34%,
+    color-mix(in srgb, var(--c-accent) 20%, transparent) 50%,
+    transparent 66%
+  );
+  transform: translateX(-100%);
+  animation: status-shimmer 2.6s ease-in-out infinite;
+}
+
+@keyframes status-pulse {
+  0%,
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.35;
+    transform: scale(0.75);
+  }
+}
+@keyframes status-shimmer {
+  0% {
+    transform: translateX(-100%);
+  }
+  65%,
+  100% {
+    transform: translateX(100%);
+  }
+}
+@keyframes status-in {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+
+/* ──────────────────────────────────────────────────────────────
    Motion. One orchestrated entrance (`.rise`), used on report
    arrival; the live pulse for in-flight agents. Both collapse
    under reduced-motion.

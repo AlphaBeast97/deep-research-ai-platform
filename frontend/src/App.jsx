@@ -21,6 +21,14 @@ import {
 
 const TABS = ['sources', 'history']
 
+/** Agent ids as they appear in a step, for the status pill's label. */
+const AGENT_NAME = {
+  planner: 'Planner',
+  researcher: 'Researcher',
+  writer: 'Writer',
+  critic: 'Critic',
+}
+
 /** The signed-in application: a research run, its trace, report and library. */
 function ResearchApp() {
   const { getToken } = useAuth()
@@ -109,6 +117,12 @@ function ResearchApp() {
   const activeTypeId = record?.reportType || meta?.reportType || reportType
   const activeTypeLabel = reportTypes.find((t) => t.id === activeTypeId)?.label
 
+  // Names the step the agents are on right now, for the status pill.
+  const lastStep = steps[steps.length - 1]
+  const activity = lastStep
+    ? `${AGENT_NAME[lastStep.agent] ?? lastStep.agent} · ${lastStep.label}`
+    : null
+
   return (
     <div className="mx-auto max-w-[1320px] px-5 pt-6 pb-16 sm:px-6">
       <header className="mb-6 flex flex-wrap items-center justify-between gap-4">
@@ -162,6 +176,7 @@ function ResearchApp() {
             running={running}
             durationMs={record?.durationMs}
             phase={phase}
+            activity={activity}
             critique={critique}
             audit={audit}
             sources={sources}

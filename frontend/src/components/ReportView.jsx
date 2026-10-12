@@ -5,6 +5,7 @@ import Button from './ui/Button.jsx'
 import Badge from './ui/Badge.jsx'
 import Mark from './ui/Mark.jsx'
 import FadeBox from './ui/FadeBox.jsx'
+import StatusPill from './ui/StatusPill.jsx'
 import { wordCount } from '../lib/format.js'
 import { downloadMarkdown, printReport } from '../lib/export.js'
 import { downloadDocx, rasterizeDiagrams } from '../lib/docx.js'
@@ -24,6 +25,7 @@ export default function ReportView({
   running,
   durationMs,
   phase,
+  activity,
   critique,
   audit,
   sources = [],
@@ -33,9 +35,10 @@ export default function ReportView({
   const containerRef = useRef(null)
   const [copied, setCopied] = useState(false)
   const [exporting, setExporting] = useState(false)
-  // Collapsed to a faded preview once the report is finished; forced open
-  // while it is still streaming.
-  const [showAll, setShowAll] = useState(false)
+  // null = follow the run: expanded while it streams, a faded preview once it
+  // is done. A click pins it either way, so the reader can collapse the report
+  // even while it is still being written.
+  const [expandedByUser, setExpandedByUser] = useState(null)
 
   const words = wordCount(report)
 
@@ -77,16 +80,26 @@ export default function ReportView({
   if (!report) {
     return (
       <Panel className="grid min-h-[340px] place-items-center">
-        <div className="max-w-[440px] text-center">
-          <Mark className="mx-auto h-12 w-12" />
-          <h2 className="mt-4 font-display text-[21px] tracking-tight text-strong">
-            {running ? 'Researching…' : 'Your report will appear here'}
-          </h2>
-          <p className="mt-2 text-[14px] leading-[1.6] text-muted">
-            {running
-              ? (PHASE_LABEL[phase] ?? 'The writer agent streams the final report as it composes it.')
-              : 'Ask a question above and the agent pipeline will plan, research, self-critique, and write a cited report.'}
-          </p>
+        <div className="mx-auto max-w-[520px] text-center">
+          {running ? (
+            <>
+              <StatusPill label={activity} />
+              <p className="mt-4 text-[13.5px] leading-[1.6] text-muted">
+                {PHASE_LABEL[phase] ?? 'Planning, searching and reading whole pages.'}
+              </p>
+            </>
+          ) : (
+            <>
+              <Mark className="mx-auto h-12 w-12" />
+              <h2 className="mt-4 font-display text-[21px] tracking-tight text-strong">
+                Your report will appear here
+              </h2>
+              <p className="mt-2 text-[14px] leading-[1.6] text-muted">
+                Ask a question above and the agent pipeline will plan, research, self-critique, and
+                write a cited report.
+              </p>
+            </>
+          )}
         </div>
       </Panel>
     )
@@ -191,8 +204,8 @@ export default function ReportView({
       <FadeBox
         className="mt-5"
         collapsedHeight={460}
-        expanded={running || showAll}
-        onToggle={running ? undefined : () => setShowAll((v) => !v)}
+        expanded={expandedByUser ?? running}
+        onToggle={() => setExpandedByUser(!(expandedByUser ?? running))}
         label="Read the full report"
       >
         <article ref={containerRef}>

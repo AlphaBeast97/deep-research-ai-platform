@@ -78,22 +78,20 @@ function StepRow({ step, isLast, running }) {
  * can override either way.
  */
 export default function AgentTrace({ steps, plan, statusMessage, phase, running }) {
-  // Expanded while a run is in flight and pinned open there; once it settles the
-  // trace becomes a short faded preview the reader can reopen. `open` is derived
-  // from `running` rather than synced to it, so there is no second source of
-  // truth to keep in step.
-  const [expandedByUser, setExpandedByUser] = useState(false)
-  const open = running || expandedByUser
-  const toggle = () => setExpandedByUser((v) => !v)
+  // null = follow the run: expanded while it is in flight, a short faded
+  // preview once it settles. A click pins it either way, so the reader can
+  // collapse the trace even while agents are still working.
+  const [override, setOverride] = useState(null)
+  const open = override ?? running
+  const toggle = () => setOverride(!open)
 
   return (
     <Panel>
       <button
         type="button"
         onClick={toggle}
-        disabled={running}
         aria-expanded={open}
-        className="flex w-full cursor-pointer items-center justify-between gap-3 text-left disabled:cursor-default"
+        className="flex w-full cursor-pointer items-center justify-between gap-3 text-left"
       >
         <span className="flex flex-wrap items-center gap-2.5">
           <span className="font-display text-[15px] font-semibold tracking-tight text-strong">
@@ -113,7 +111,7 @@ export default function AgentTrace({ steps, plan, statusMessage, phase, running 
               {steps.length} step{steps.length === 1 ? '' : 's'}
             </span>
           )}
-          {!running && <Chevron open={open} />}
+          <Chevron open={open} />
         </span>
       </button>
 
@@ -121,7 +119,7 @@ export default function AgentTrace({ steps, plan, statusMessage, phase, running 
         className="mt-4"
         collapsedHeight={168}
         expanded={open}
-        onToggle={running ? undefined : toggle}
+        onToggle={toggle}
         label="Show all activity"
       >
         <div className="rise">
