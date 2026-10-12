@@ -187,7 +187,7 @@ consumer) has an unambiguous, non-JSON way to detect completion.
 | Event | Emitted when | Payload highlights | UI effect |
 |---|---|---|---|
 | `meta` | run starts | `model`, `smartModel`, `depth`, `critique`, `deepFetch`, `maxRounds`, `reportType`, `query` | records run metadata |
-| `phase` | entering a pipeline phase | `phase` (`plan`/`research`/`draft`/`critique`/`revision`/`audit`) | phase badge + phase timeline |
+| `phase` | entering a pipeline phase | `phase` (`plan`/`research`/`draft`/`critique`/`revision`/`audit`) | step pill in the trace header |
 | `status` | phase changes | `message` | status line |
 | `plan` | planner done | `title`, `scope`, `subQuestions` | plan checklist + scope note |
 | `step` | agent starts/finishes | `{agent, label, detail, status}` | trace row |
