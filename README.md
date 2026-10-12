@@ -15,7 +15,7 @@ against its own sources, **revises** it, and runs a **citation audit** before
 > (what the system is, its goals, its stack, and the file map), then splits by module:
 > [agent orchestration & prompts](docs/agents.md) · [backend](docs/backend.md) ·
 > [frontend](docs/frontend.md) · [measured verification & limitations](docs/verification.md) ·
-> [the 26 ADRs](docs/decisions.md) · [deployment proposal](docs/deployment.md).
+> [the 27 ADRs](docs/decisions.md) · [deployment proposal](docs/deployment.md).
 > Read it before changing anything structural.
 
 ---

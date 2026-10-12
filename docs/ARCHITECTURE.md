@@ -218,11 +218,14 @@ place that enforces owner scoping rather than the one place that picks a driver.
 | `react-markdown` 9 + `remark-gfm` 4 | Renders model output as Markdown **without `dangerouslySetInnerHTML`**. See [ADR-14](decisions.md#adr-14-react-markdown-instead-of-innerhtml). |
 | `tailwindcss` 4 + `@tailwindcss/vite` | Utility styling through the v4 Vite plugin — no `tailwind.config.js`, no PostCSS config. See [ADR-19](decisions.md#adr-19-tailwind-v4-for-styling). |
 | `mermaid` 12 | Renders the report's ` ```mermaid ` blocks to SVG. Lazily imported so the library is code-split out of the main bundle. See [ADR-18](decisions.md#adr-18-client-side-mermaid-with-a-syntax-fallback). |
+| `motion` 14 | The landing's scroll-reveal animations, used through `m` + `LazyMotion` (the `domAnimation` feature set) and dynamically imported — ~13 kB gzip in the main bundle plus a ~15 kB gzip chunk. See [ADR-27](decisions.md#adr-27-motion-for-the-landing-animations). |
 
 **Deliberately still absent:** any state library (React state is sufficient — see
 [§13.1](frontend.md#131-state-machine)), any HTTP client (native `fetch` streams, which `axios`
-historically handled worse), and any UI kit — the four primitives in `components/ui/`
-are ~90 lines in total.
+historically handled worse), and any *component* kit — the primitives in `components/ui/` are
+hand-written Tailwind, not a UI library. `motion` is the one library-shaped addition, and it is
+scoped to the landing's animation rather than to components
+([ADR-27](decisions.md#adr-27-motion-for-the-landing-animations)).
 
 ---
 
@@ -318,6 +321,7 @@ frontend/
       export.js                    .md download + print-to-PDF (with sources appendix)
       docx.js                      Markdown → .docx (headings/tables/images/sources)
       format.js                    hostOf / timeAgo / slugify / wordCount
+      motionFeatures.js            the motion feature set, kept in its own chunk
     components/
       ui/
         Button.jsx                 primary / secondary / ghost button primitive
@@ -326,6 +330,7 @@ frontend/
         Mark.jsx                   the document brand mark (shared with the favicon)
         FadeBox.jsx                fade-and-blur collapse wrapper (report + trace)
         StatusPill.jsx             the animated "which step is running" bubble
+        Reveal.jsx                 reveal-on-scroll wrapper built on motion
       QueryForm.jsx                input, examples, run/stop
       AgentTrace.jsx               phase badge, scope note, plan checklist, step trace
       Landing.jsx                  signed-out marketing page
@@ -345,7 +350,7 @@ docs/                              the architecture record, split by module
   backend.md                       §6, §9–§12, §14, §17–§18
   frontend.md                      §13     state machine, components, export, styling
   verification.md                  §15, §19–§20   measured runs, performance, limitations
-  decisions.md                     §16     the 26 ADRs
+  decisions.md                     §16     the 27 ADRs
   deployment.md                    §22     deployment options, recommendation, blueprint
 scripts/
   check-docs.mjs                   fact-checks this record against the code (`node scripts/check-docs.mjs`)

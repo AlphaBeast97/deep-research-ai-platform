@@ -291,3 +291,27 @@ Each entry: the decision, what was rejected, why, and what it costs.
   that would soften it (one retry).
 
 ---
+
+### ADR-27: `motion` for the landing animations
+
+- **Decision:** add one animation library, `motion` (v14), and use it **only on the signed-out
+  landing** — the scroll reveals for the hero, the feature band and the six-phase chapters. It is
+  used through `m` + `LazyMotion` with the `domAnimation` feature set, and the feature set is a
+  dynamic import (`lib/motionFeatures.js`), so it lands in its own chunk.
+- **Rejected:** keeping the hand-rolled `IntersectionObserver` + CSS-transition `Reveal`; a
+  component kit (MUI/Chakra); an in-house spring/timeline implementation.
+- **Why:** the hand-rolled version worked but is a small animation engine to own — no staggering,
+  no spring physics, no gesture support — and every further motion idea meant writing more of it.
+  A component kit is the wrong tool: nothing in MUI or Chakra ships a "six-phase journey", and its
+  design language would have to be overridden on every screen ([ADR-19](#adr-19-tailwind-v4-for-styling)
+  already rejected one). `motion` is the one library that replaces custom code rather than adding
+  surface we do not use.
+- **Cost, measured:** the main bundle grew from **559.83 kB to 597.79 kB** (gzip 167.92 → 181.14),
+  with the feature set in a separate **38.17 kB / 14.65 kB gzip** chunk — about **28 kB gzip
+  total** for the animation layer. If that is ever judged too expensive, reverting is contained:
+  restore the observer-based `Reveal` (one component, and the `motion` import in `main.jsx`).
+- **Boundary:** it is a *landing-page* dependency. The signed-in app animates with CSS keyframes
+  (`.rise`, the status pulse, the step shimmer) and keeps no motion imports of its own, so the
+  library's blast radius stays the marketing page.
+
+---

@@ -263,9 +263,13 @@ tokens, changing the palette and type was a change to `index.css` plus one `<lin
 identity: `.btn-primary` (its hover mixes toward the ink colour, so the label stays legible
 whether the accent is light or dark), and `.marker` / `.sketch-rule`, the hand-drawn annotation
 motif.
-- **Motion is one orchestrated entrance and it collapses.** `.rise` plays when a report arrives;
-the live agent pulse is the only other animation. A `prefers-reduced-motion` block neutralises
-both, and every interactive element carries a visible `:focus-visible` ring.
+- **Motion is two systems, deliberately split.** The signed-in app animates with CSS keyframes
+only — `.rise` when a report arrives, the status pulse, the step-pill shimmer — nothing else. The
+**signed-out landing** is the one place that uses a library: `motion`, via `m` + `LazyMotion`
+(`domAnimation`) with the feature set dynamically imported, wrapped by `Reveal`. It is scoped that
+way on purpose, so the library's blast radius is the marketing page and a `prefers-reduced-motion`
+user gets a static page from both systems ([ADR-27](decisions.md#adr-27-motion-for-the-landing-animations)).
+Every interactive element carries a visible `:focus-visible` ring.
 - **Nothing important just disappears.** The two long streams — the agent trace and the finished
 report — each end in a `FadeBox`: the block is clipped, its lower edge is blurred and faded into
 the panel, and a pill inside that band expands it. The open state is *derived*
