@@ -186,14 +186,16 @@ function ResearchApp() {
         </div>
 
         <aside className="flex flex-col gap-3 lg:sticky lg:top-5">
-          <div className="flex gap-1 rounded-panel border border-line bg-surface p-1">
+          <div className="flex gap-1 rounded-panel border border-line bg-inset p-1">
             {TABS.map((name) => (
               <button
                 key={name}
                 type="button"
                 className={cn(
                   'flex flex-1 cursor-pointer items-center justify-center gap-[7px] rounded-control border-none px-3 py-2.5 text-[13px] font-semibold capitalize transition-colors',
-                  tab === name ? 'bg-surface-2 text-strong' : 'bg-transparent text-muted hover:bg-surface-2 hover:text-strong',
+                  tab === name
+                    ? 'bg-surface text-strong shadow-panel'
+                    : 'bg-transparent text-muted hover:text-strong',
                 )}
                 onClick={() => setTab(name)}
               >
