@@ -544,6 +544,23 @@
   animation: rise 0.45s cubic-bezier(0.22, 0.61, 0.36, 1) both;
 }
 
+/* Rows that arrive while a page is already open — a streamed source, a trace
+   step, a new history entry — fade in instead of popping in. Applied per
+   element, so a list that grows animates only its new items. */
+@keyframes enter {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: none;
+  }
+}
+.enter {
+  animation: enter 0.28s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,

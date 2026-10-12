@@ -46,7 +46,7 @@ function StepRow({ step, isLast, running }) {
   return (
     <li
       className={cn(
-        'relative flex gap-3 pb-4 last:pb-0',
+        'enter relative flex gap-3 pb-4 last:pb-0',
         !isLast &&
           "before:absolute before:top-4 before:bottom-0 before:left-[4px] before:w-px before:bg-line before:content-['']",
       )}

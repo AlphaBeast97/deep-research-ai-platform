@@ -168,7 +168,7 @@ export default function ReportView({
 
       {critique?.issues?.length > 0 && (
         <details className="mt-3.5 rounded-control border border-line bg-inset px-3.5 py-2.5">
-          <summary className="cursor-pointer text-[12.5px] font-semibold text-strong select-none">
+          <summary className="cursor-pointer text-[12.5px] font-semibold text-strong transition-colors select-none hover:text-accent">
             Self-critique · {critique.issues.length} issue
             {critique.issues.length === 1 ? '' : 's'} found before the revision
           </summary>

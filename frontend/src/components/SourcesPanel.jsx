@@ -28,8 +28,8 @@ export default function SourcesPanel({ sources, uncited = [] }) {
                 key={s.id ?? s.url}
                 id={`source-${s.index}`}
                 className={cn(
-                  'source-card flex gap-2.5 rounded-control border border-line-soft bg-inset p-2.5 transition-colors',
-                  isUncited && 'opacity-65',
+                  'source-card enter flex gap-2.5 rounded-control border border-line-soft bg-inset p-2.5 transition duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2',
+                  isUncited && 'opacity-65 hover:opacity-100',
                 )}
               >
                 <span className="grid h-[22px] w-[22px] flex-none place-items-center rounded-lg bg-accent/12 text-[11.5px] font-bold text-accent">

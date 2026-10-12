@@ -18,7 +18,7 @@ export default function HistoryPanel({ reports, onOpen, onDelete, activeId }) {
             <li
               key={r.id}
               className={cn(
-                'flex items-center overflow-hidden rounded-control border bg-inset transition-colors',
+                'enter flex items-center overflow-hidden rounded-control border bg-inset transition duration-200 hover:-translate-y-0.5',
                 r.id === activeId ? 'border-accent' : 'border-line-soft hover:border-accent/50',
               )}
             >

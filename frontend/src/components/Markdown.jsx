@@ -44,7 +44,7 @@ function Citation({ n }) {
   return (
     <a
       href={`#source-${n}`}
-      className="citation-chip inline-grid h-[17px] min-w-[17px] cursor-pointer place-items-center rounded-[5px] border border-accent/35 bg-accent/15 px-1 align-super text-[10.5px] leading-none font-bold text-accent no-underline transition-colors hover:bg-accent hover:text-white"
+      className="citation-chip inline-grid h-[17px] min-w-[17px] cursor-pointer place-items-center rounded-[5px] border border-accent/35 bg-accent/15 px-1 align-super text-[10.5px] leading-none font-bold text-accent no-underline transition duration-150 hover:scale-110 hover:bg-accent hover:text-bg"
       title={`Jump to source ${n}`}
       onClick={(e) => {
         e.preventDefault()

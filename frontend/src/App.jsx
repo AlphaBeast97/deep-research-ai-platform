@@ -193,7 +193,7 @@ function ResearchApp() {
                 type="button"
                 className={cn(
                   'flex flex-1 cursor-pointer items-center justify-center gap-[7px] rounded-control border-none px-3 py-2.5 text-[13px] font-semibold capitalize transition-colors',
-                  tab === name ? 'bg-surface-2 text-strong' : 'bg-transparent text-muted',
+                  tab === name ? 'bg-surface-2 text-strong' : 'bg-transparent text-muted hover:bg-surface-2 hover:text-strong',
                 )}
                 onClick={() => setTab(name)}
               >

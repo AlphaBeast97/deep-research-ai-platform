@@ -264,7 +264,8 @@ identity: `.btn-primary` (its hover mixes toward the ink colour, so the label st
 whether the accent is light or dark), and `.marker` / `.sketch-rule`, the hand-drawn annotation
 motif.
 - **Motion is two systems, deliberately split.** The signed-in app animates with CSS keyframes
-only — `.rise` when a report arrives, the status pulse, the step-pill shimmer — nothing else. The
+only — `.rise` when a report arrives, `.enter` for rows that stream in (a new source card, a trace
+step, a history entry), the status pulse, the step-pill shimmer. The
 **signed-out landing** is the one place that uses a library: `motion`, via `m` + `LazyMotion`
 (`domAnimation`) with the feature set dynamically imported, wrapped by `Reveal`. It is scoped that
 way on purpose, so the library's blast radius is the marketing page and a `prefers-reduced-motion`
