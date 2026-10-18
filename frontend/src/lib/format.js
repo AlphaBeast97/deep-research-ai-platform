@@ -33,3 +33,27 @@ export function wordCount(text) {
   const trimmed = (text || '').trim()
   return trimmed ? trimmed.split(/\s+/).length : 0
 }
+
+/** Thousands separators, deterministic across environments. */
+export function formatNumber(value) {
+  const n = Number(value)
+  return Number.isFinite(n) ? n.toLocaleString('en-US') : ''
+}
+
+/** Compact duration: `4ms`, `37.5s`, `1m 32s`. Null when there is nothing to show. */
+export function formatDuration(ms) {
+  const n = Number(ms)
+  if (!Number.isFinite(n) || n <= 0) return null
+  if (n < 1000) return `${Math.round(n)}ms`
+  const seconds = n / 1000
+  if (seconds < 60) return `${seconds.toFixed(1)}s`
+  const whole = Math.round(seconds)
+  return `${Math.floor(whole / 60)}m ${String(whole % 60).padStart(2, '0')}s`
+}
+
+/** Calendar date for a stored run, e.g. `10 Oct 2026`. */
+export function formatDate(iso) {
+  const date = new Date(iso)
+  if (Number.isNaN(date.getTime())) return ''
+  return date.toLocaleDateString('en-GB', { day: 'numeric', month: 'short', year: 'numeric' })
+}

@@ -182,6 +182,7 @@ function ResearchApp() {
             sources={sources}
             typeLabel={activeTypeLabel}
             stopped={research.stopped}
+            record={record}
           />
         </div>
 

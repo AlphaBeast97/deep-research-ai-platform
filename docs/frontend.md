@@ -303,11 +303,18 @@ than hide it behind a confident-looking document:
 | Critique verdict + issue list | `ReportView` `<details>` disclosure | the reviewer's findings are available on demand, not presented as a badge of shame |
 | Uncited sources dimmed | `SourcesPanel` | shows *which* sources went unused, which is where a reader would look for the missing angle |
 | Phase-aware placeholder | `ReportView` before first token | the draft phase is slow; a placeholder that names the phase is honest about what's happening |
+| Run metadata — tokens, search rounds, revised, date | `ReportView`, under the byline | the record already stores what the run cost and whether it re-searched; a reader auditing a report should not have to open Mongo to see it |
+| Phase timings | `ReportView`, a stacked bar | makes "research is most of the run" checkable per report instead of a claim in the README |
 
 **The design rule:** every integrity number the backend computes is rendered somewhere the
 user can see, and nothing is styled as an error when it is merely a *limitation*. A report
 that admits "the evidence conflicts here, and these sources went unused" is more useful than
 one that presents false completeness — and the earlier the UI makes that visible, the harder
 it is for the pipeline to quietly regress.
+
+The run metadata is read from the stored record rather than recomputed, so a reopened report
+shows exactly what the live run showed. It is entirely conditional: a record that predates a
+field (or a run still streaming) simply omits that clause, and phases with no measurable time
+are dropped rather than drawn as zero-width slivers.
 
 ---
