@@ -47,7 +47,7 @@ const CLOSERS = { ']': '[', ')': '(', '}': '{' }
 /** Statements whose lines are metadata, not node/edge syntax. */
 const STATEMENT = /^\s*(?:%%|style\b|classDef\b|class\b|linkStyle\b|click\b|direction\b)/i
 /** Keywords that are structural rather than statements. */
-const KEYWORD = /^\s*(?:end|subgraph)\b/i
+const KEYWORD = /^\s*(?:end|subgraph|flowchart|graph)\b/i
 
 /** A label that is already quoted is left alone — this is what makes repair idempotent. */
 const isQuoted = (text) => /^"[\s\S]*"$/.test(text.trim())
@@ -217,26 +217,30 @@ function repairLabels(line) {
 }
 
 /**
- * A sentence the model wrote *inside* the fence ("This diagram shows the
- * chain.") is a parse error. A line only counts as stray prose when it has no
- * diagram structure at all and reads like a sentence, so node ids, `end`,
- * `style …` and every real statement survive untouched.
+ * Prose the model wrote *inside* the fence — a sentence ("This diagram shows
+ * the chain.") or a bare comparison ("School_A vs. School_B") — is a parse error.
+ * A multi-token line is only diagram syntax when one of its tokens is nothing
+ * but link characters (`-->`, `---`, `~~~`, `&`); every other bare multi-token
+ * line is prose. Single tokens are node ids and survive, as do `end`,
+ * `subgraph …` and `style …` / `class …` statements.
  */
 const STRUCTURE = /(-->|---|==>|-\.-|\[|\{|\(|\||:|%%|<)/
+const CONNECTOR = /^(?:[-=<>~&]+)$/
 function isStrayProse(line) {
   const text = line.trim()
   if (!text || STRUCTURE.test(text) || KEYWORD.test(text)) return false
-  return /[.!?]$/.test(text) || text.split(/\s+/).length >= 5
+  const tokens = text.split(/\s+/)
+  return tokens.length > 1 && !tokens.some((token) => CONNECTOR.test(token))
 }
 
 /** One line of a flowchart: drop what Mermaid cannot parse, repair what it can. */
 function repairFlowchartLine(line, depth) {
   if (FENCE.test(line)) return null
-  if (isStrayProse(line)) return null
   const isEnd = /^\s*end\s*;?\s*$/i.test(line)
   // An `end` with no open subgraph is a parse error; drop it.
   if (isEnd && depth === 0) return null
   if (STATEMENT.test(line)) return line
+  if (isStrayProse(line)) return null
   return repairArrows(repairLabels(repairDoubledDelimiters(repairSubgraphTitle(line))), 'flowchart')
 }
 

@@ -203,7 +203,7 @@ carries the error it exists to fix:
 | A single-dash `->` in a flowchart | rewritten to `-->` — `-->`, `-->>` and `-.->` are left alone |
 | `(`/`)`, `"`, `[`/`]` inside an unquoted label, in any node shape (`[ ]`, `( )`, `{ }`, `(( ))`, `([ ])`) | the label is quoted; an inner `"` becomes `#quot;` and a trailing backslash is doubled |
 | The same in an edge label (`-->|Costs (2020)|`) or a `subgraph` title | quoted the same way |
-| A sentence of prose inside the fence, a nested fence, an `end` with no open `subgraph` | dropped |
+| A sentence of prose inside the fence, a bare comparison line (`School_A vs. School_B`), a nested fence, an `end` with no open `subgraph` | dropped — a multi-token line is only syntax when one token is pure link characters (`-->`, `---`, `~~~`, `&`) |
 
 The repair is deliberately narrow: `%`, `>`, `,`, `:`, `;` and `&` are all accepted unquoted
 by Mermaid 12, and quoting "just in case" would edit diagrams that already render — a quoted

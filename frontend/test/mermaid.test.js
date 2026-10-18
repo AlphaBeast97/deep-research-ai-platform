@@ -61,6 +61,16 @@ const BROKEN = {
   'parentheses in a subgraph title': 'flowchart TD\nsubgraph Client (frontend)\n  A[Start] --> B[End]\nend\n',
   'parentheses in an edge label': 'flowchart TD\nA[Start] -->|Costs (2020)| B[End]\n',
   'a sentence of prose inside the fence': 'flowchart TD\nA[Start] --> B[End]\nThis diagram shows the chain.\n',
+  'a bare comparison line between subgraphs': [
+    'flowchart TD',
+    'subgraph Techno_Economic_School ["Engineering Modeling Position"]',
+    '  T1["Study: $3,985-$4,844/kW"]',
+    'end',
+    'subgraph Empirical_School ["Financial Audit & Critical Position"]',
+    '  E1["Audit: $20,000-$21,561/kW"]',
+    'end',
+    'Techno_Economic_School vs. Empirical_School',
+  ].join('\n'),
   'an end with no open subgraph': 'flowchart TD\nA[Start] --> B[End]\nstyle A fill:#f9f,stroke:#333\nend\n',
   'a nested fence inside the block': 'flowchart TD\n```\nA[Start] --> B[End]\n',
   'a Unicode arrow in a sequence diagram': 'sequenceDiagram\n  A ⟶ B: hello\n',
@@ -126,6 +136,35 @@ test('the repaired report diagram keeps its structure', () => {
   assert.match(repaired, /style D fill:#bbf,stroke:#333,stroke-width:1px/)
 })
 
+/**
+ * The diagram from the report this repair came from — two subgraphs and a
+ * trailing `School_A vs. School_B` line the model wrote as if it were syntax.
+ * Mermaid reads that as a node id followed by a stray word: a parse error.
+ */
+const COMPARISON_DIAGRAM = [
+  'flowchart TD',
+  '    subgraph Techno_Economic_School ["Engineering Modeling Position"]',
+  '        T1["Colorado State Univ Study: $3,985-$4,844/kW [10](#source-10)"]',
+  '        T2["GE Hitachi Target: $3,000-$5,000/kW [20](#source-20)"]',
+  '    end',
+  '    subgraph Empirical_School ["Financial Audit & Critical Position"]',
+  '        E1["NuScale Peak Project Audit: $20,000-$21,561/kW [17](#source-17)[46](#source-46)"]',
+  '        E2["TerraPower Natrium FOAK: ~$11,600/kW [20](#source-20)[39](#source-39)"]',
+  '    end',
+  '    Techno_Economic_School vs. Empirical_School',
+].join('\n')
+
+test('the bare comparison line that broke a real report is dropped', async () => {
+  assert.equal(await parses(COMPARISON_DIAGRAM), false, 'the raw diagram should be a parse error')
+  const repaired = repairMermaid(COMPARISON_DIAGRAM)
+  assert.equal(await parses(repaired), true, 'the repaired diagram still does not parse')
+  // Both subgraphs and their nodes survive; only the prose line is gone.
+  assert.match(repaired, /subgraph Techno_Economic_School/)
+  assert.match(repaired, /subgraph Empirical_School/)
+  assert.match(repaired, /T1\["Colorado State Univ Study: \$3,985-\$4,844\/kW \[10\]\(#source-10\)"\]/)
+  assert.doesNotMatch(repaired, /vs\. Empirical_School/)
+})
+
 // ── Diagrams that already work must not be touched ─────────────────────────
 const VALID = {
   'plain flowchart': 'flowchart TD\nA[Start] --> B[End]\n',
@@ -133,6 +172,8 @@ const VALID = {
   'old graph keyword': 'graph TD\nA[Start] --> B[End]\n',
   'punctuation Mermaid accepts unquoted': 'flowchart TD\nA[Ratio: 3 & more, 20%] --> B[One; two]\n',
   'dotted and thick arrows': 'flowchart TD\nA[Start] -.-> B[End]\nA ==> C[End]\n',
+  'arrowless links and a bare node': 'flowchart TD\nA --- B\nC ~~~ D\nE\n',
+  'node shorthand joined by ampersands': 'flowchart TD\nA & B --> C[Done]\nX & Y\n',
   'an arrow inside a label': 'flowchart TD\nA[Growth --> 2026] --> B[End]\n',
   'html line break in a label': 'flowchart TD\nA[Line<br/>two] --> B[End]\n',
   'comments, styles and classDefs': 'flowchart TD\n%% a comment\nA[Start] --> B[End]\nstyle A fill:#f9f\nclassDef big font-size:20px\n',

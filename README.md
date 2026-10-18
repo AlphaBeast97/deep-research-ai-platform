@@ -443,8 +443,9 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
   audit numbers and the critic's verdict instead of hiding them.
 - **Mermaid diagrams in the report** — the writer embeds ```` ```mermaid ```` flowcharts/timelines where they
   clarify a process, and the UI renders them as SVG. Diagrams the model gets syntactically wrong
-  (Unicode or single-dash arrows, unquoted parentheses in labels) are repaired before they are
-  parsed, so the diagram the prose refers to is the diagram you see; anything the repair cannot
+  (Unicode or single-dash arrows, unquoted parentheses in labels, prose lines such as
+  `A vs. B`) are repaired before they are parsed, so the diagram the prose refers to is the
+  diagram you see; anything the repair cannot
   rescue still falls back to showing its source rather than breaking the report.
 - **Citations & sources panel** — inline `[n]` markers become clickable chips that scroll to the matching source card.
 - **Export** — copy as Markdown, download `.md` (repairable diagrams preserved as code), download **Word `.docx`** (real headings, tables, and diagrams rasterised to images), or print/save as **PDF**. All three files carry a **Sources appendix** listing only the sources the report actually cites, so every entry resolves to a `[n]` in the text and vice versa.
