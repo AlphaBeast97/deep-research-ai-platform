@@ -31,7 +31,12 @@ stateDiagram-v2
 - **`running`** — request in flight; `AbortController` held in a ref.
 - **`done`** — either the `done` event arrived, or the user aborted. A stopped run keeps the
   partial report *and* sets `stopped`, so the view labels it a partial draft (the critique and
-  the citation audit never ran) instead of presenting it as finished.
+  the citation audit never ran) instead of presenting it as finished. `loadRecord` sets the
+  same flag when the stored record's `status` is `stopped` or `failed`: the server now keeps
+  what a stopped run reached ([ADR-30](decisions.md#adr-30-a-stopped-or-failed-run-is-still-stored)),
+  so a reopened partial must not look like a finished report either. When such a record has no
+  draft at all, the empty state says the run ended before a report was written and shows the
+  stored error.
 - **`error`** — fetch threw or an `error` event arrived.
 
 **Why one reducer-style `apply(event)` and not per-event handlers:** every event is folded

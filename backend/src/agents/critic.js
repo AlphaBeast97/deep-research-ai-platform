@@ -11,15 +11,22 @@ const VERDICTS = new Set(['solid', 'minor-issues', 'needs-revision'])
 /** Exported for tests: the critique shape is the contract with the revisor. */
 export function normalise(data) {
   const issues = (Array.isArray(data.issues) ? data.issues : [])
-    .map((i) => ({
-      type: asText(i?.type) || 'other',
-      severity: SEVERITIES.has(asText(i?.severity).toLowerCase())
-        ? asText(i?.severity).toLowerCase()
-        : 'medium',
-      claim: asText(i?.claim),
-      problem: asText(i?.problem),
-      fix: asText(i?.fix),
-    }))
+    .map((i) => {
+      const fix = asText(i?.fix)
+      return {
+        type: asText(i?.type) || 'other',
+        severity: SEVERITIES.has(asText(i?.severity).toLowerCase())
+          ? asText(i?.severity).toLowerCase()
+          : 'medium',
+        claim: asText(i?.claim),
+        problem: asText(i?.problem),
+        fix,
+        // The revisor never sees the sources, so an issue without a stated
+        // correction is a finding it can only guess at. Recorded for the
+        // reader, withheld from the revision (see actionableIssues).
+        actionable: Boolean(fix),
+      }
+    })
     .filter((i) => i.problem)
 
   const citationProblems = (Array.isArray(data.citationProblems) ? data.citationProblems : [])
@@ -73,6 +80,16 @@ export async function critique({ query, research, sources, draft, reportType, si
     signal,
   })
   return { critique: normalise(data), usage, fullTextSources: expand.length }
+}
+
+/**
+ * The issues the revisor can actually apply: those the critic supplied a fix
+ * for. Absent `actionable` (a critique stored before this field existed) counts
+ * as actionable, so reopening an old report still reads its critique as work
+ * that was done.
+ */
+export function actionableIssues(critique) {
+  return (critique?.issues || []).filter((issue) => issue.actionable !== false)
 }
 
 /**

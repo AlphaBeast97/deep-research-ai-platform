@@ -39,6 +39,11 @@ const reportSchema = new mongoose.Schema(
     critique: mongoose.Schema.Types.Mixed,
     audit: mongoose.Schema.Types.Mixed,
     revised: Boolean,
+    // Why the accepted revision is not the one that shipped (empty, citation-free,
+    // structure-free, lost most of the draft's figures), if it was rejected.
+    revisionRejected: String,
+    // Set on a run that stopped or failed part-way through; `status` says which.
+    error: String,
     searchRounds: Number,
     phases: [
       {

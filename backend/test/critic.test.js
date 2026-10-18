@@ -1,6 +1,6 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
-import { hasMaterialIssues, normalise } from '../src/agents/critic.js'
+import { actionableIssues, hasMaterialIssues, normalise } from '../src/agents/critic.js'
 
 test('a high-severity issue outranks a lenient self-assessment', () => {
   const critique = normalise({
@@ -25,6 +25,29 @@ test('issues and citation problems without a problem statement are discarded', (
   })
   assert.deepEqual(critique.issues, [])
   assert.deepEqual(critique.citationProblems, [])
+})
+
+test('an issue with no stated fix is kept for the reader but withheld from the revisor', () => {
+  const critique = normalise({
+    issues: [
+      { severity: 'high', type: 'overreach', problem: 'This figure is not in [3].' },
+      { severity: 'medium', type: 'uncited', problem: 'No citation.', fix: 'Delete the claim.' },
+    ],
+  })
+
+  assert.equal(critique.issues.length, 2)
+  assert.equal(critique.issues[0].actionable, false)
+  assert.equal(critique.issues[1].actionable, true)
+  assert.deepEqual(
+    actionableIssues(critique).map((i) => i.problem),
+    ['No citation.'],
+  )
+})
+
+test('a critique stored before the actionable field still counts as work', () => {
+  const legacy = { issues: [{ severity: 'high', problem: 'Old record' }] }
+  assert.equal(actionableIssues(legacy).length, 1)
+  assert.equal(actionableIssues(null).length, 0)
 })
 
 test('an unparseable verdict falls back to minor-issues', () => {

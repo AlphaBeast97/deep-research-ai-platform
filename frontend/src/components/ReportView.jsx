@@ -131,6 +131,17 @@ export default function ReportView({
                 {PHASE_LABEL[phase] ?? 'Planning, searching and reading whole pages.'}
               </p>
             </>
+          ) : stopped ? (
+            <>
+              <Mark className="mx-auto h-12 w-12" />
+              <h2 className="mt-4 font-display text-[21px] tracking-tight text-strong">
+                This run ended before a report was written
+              </h2>
+              <p className="mt-2 text-[14px] leading-[1.6] text-muted">
+                {record?.error || 'The run stopped during research.'} The sources and steps it
+                reached are kept in the trace above.
+              </p>
+            </>
           ) : (
             <>
               <Mark className="mx-auto h-12 w-12" />
@@ -212,8 +223,9 @@ export default function ReportView({
           audit — say so, rather than presenting it as a finished report. */}
       {stopped && (
         <div className="mt-3 rounded-control border border-warn/35 bg-warn/10 px-3.5 py-2.5 text-[12.5px] text-warn">
-          <strong>Stopped early.</strong> The critique and citation audit never ran, so nothing below
-          has been verified against its sources yet.
+          <strong>{record?.status === 'failed' ? 'Run failed.' : 'Stopped early.'}</strong>{' '}
+          {record?.error ? `${record.error} ` : ''}The critique and citation audit never ran, so
+          nothing below has been verified against its sources yet.
         </div>
       )}
 

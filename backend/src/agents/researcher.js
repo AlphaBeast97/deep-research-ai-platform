@@ -125,6 +125,73 @@ export function failedExtraction(question, intent, reason) {
   }
 }
 
+const CONFIDENCE_RANK = { low: 0, medium: 1, high: 2 }
+
+/** Claim identity for deduplication: case- and punctuation-insensitive text. */
+const claimKey = (point) =>
+  String(point || '')
+    .toLowerCase()
+    .replace(/[^\p{L}\p{N} ]+/gu, ' ')
+    .replace(/\s+/g, ' ')
+    .trim()
+
+/**
+ * Fold a later round's extraction into what earlier rounds already found.
+ *
+ * A gap-filling round used to *replace* the previous extraction, so a second
+ * round that came back thin (or failed outright) silently threw away findings
+ * the run had already paid to establish. The merge keeps every grounded claim:
+ *
+ * - findings are unioned by claim text, and a repeated claim keeps the union of
+ *   its citations and its strongest confidence;
+ * - `coverage` takes the better of the two estimates — gathering more sources
+ *   cannot make a sub-question less covered, and a later round that found
+ *   nothing must not reset the measure that decides whether to keep searching;
+ * - `gaps` is unioned, because a gap recorded in either round is still open;
+ * - the summary only moves forward when the later round actually produced
+ *   findings, so "no sources were found" never overwrites a real synthesis.
+ */
+export function mergeExtractions(previous, next) {
+  if (!previous) return next
+  if (!next) return previous
+
+  const findings = (previous.findings || []).map((f) => ({ ...f, cites: [...(f.cites || [])] }))
+  const byKey = new Map(findings.map((f) => [claimKey(f.point), f]))
+
+  for (const finding of next.findings || []) {
+    const key = claimKey(finding.point)
+    const known = byKey.get(key)
+    if (!known) {
+      const copy = { ...finding, cites: [...(finding.cites || [])] }
+      findings.push(copy)
+      byKey.set(key, copy)
+      continue
+    }
+    known.cites = [...new Set([...known.cites, ...(finding.cites || [])])].sort((a, b) => a - b)
+    if (CONFIDENCE_RANK[finding.confidence] > CONFIDENCE_RANK[known.confidence]) {
+      known.confidence = finding.confidence
+    }
+  }
+
+  const gaps = []
+  for (const gap of [...(previous.gaps || []), ...(next.gaps || [])]) {
+    if (gap && !gaps.includes(gap)) gaps.push(gap)
+  }
+
+  return {
+    ...previous,
+    summary: next.findings?.length && next.summary ? next.summary : previous.summary,
+    coverage:
+      previous.coverage === null || previous.coverage === undefined
+        ? next.coverage
+        : Math.max(previous.coverage, next.coverage ?? 0),
+    findings,
+    droppedFindings: (previous.droppedFindings || 0) + (next.droppedFindings || 0),
+    gaps,
+    rounds: Math.max(previous.rounds || 1, next.rounds || 1),
+  }
+}
+
 /**
  * Should this sub-question get another search round? Triggers when nothing
  * usable was extracted, or when the researcher's own coverage estimate falls

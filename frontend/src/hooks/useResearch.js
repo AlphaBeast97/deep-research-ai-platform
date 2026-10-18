@@ -46,6 +46,10 @@ export function useResearch() {
   }, [])
 
   const loadRecord = useCallback((record) => {
+    // A stored run that was stopped or failed is reopened as what it is: the
+    // report view warns that the critique and citation audit never ran, instead
+    // of presenting a partial draft as a finished report.
+    const partial = record.status === 'stopped' || record.status === 'failed'
     setState({
       status: 'done',
       phase: null,
@@ -64,7 +68,7 @@ export function useResearch() {
       audit: record.audit ?? null,
       record,
       error: null,
-      stopped: false,
+      stopped: partial,
     })
   }, [])
 

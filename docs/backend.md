@@ -571,6 +571,8 @@ erDiagram
         string  report
         string  ownerId "Clerk user id"
         boolean revised
+        string  revisionRejected "why a revision was not used"
+        string  error "set when status is stopped or failed"
         number  searchRounds
         mixed   research "raw extractions"
         number  promptTokens
@@ -770,7 +772,7 @@ flowchart TD
     WRITE --> CRIT{"critique call"}
     CRIT -->|"throws"| REV
     CRIT -->|"ok"| REV{"revision stream<br/>(always runs)"}
-    REV -->|"throws (incl. a stall) or &lt;120 words"| KEEP["keep the draft;<br/>revised = false"]
+    REV -->|"throws (incl. a stall) or fails<br/>revisionRejection"| KEEP["keep the draft;<br/>revised = false"]
     REV -->|"ok"| AUDIT["citation audit +<br/>sanitise"]
     KEEP --> AUDIT
     AUDIT -->|"ok"| SAVE{"db.save"}
@@ -788,18 +790,21 @@ Four tiers of failure handling, each deliberate:
    if the database is down — the report was already streamed to them anyway.
 3. **Every *added* phase is individually survivable.** Deep-fetch failures drop to snippets;
    an empty or failed follow-up proposal ends the gap loop instead of the run; a failed
-   critique skips straight to revision; a failed or degenerate revision keeps the draft. Each
+   critique skips straight to revision; a revision that fails `revisionRejection` — empty,
+   citation-free, heading-free, or missing most of the draft's figures — keeps the draft. Each
    guard exists because the phase is an *enhancement* — the pipeline must still produce a
    cited report if any of them misbehave. A **stalled** revision counts as a failure, which
    took an explicit fix to be true: aborting a stream does not reliably arrive as an error, so
    the watchdog re-asserts the stall after the stream ends rather than letting the partial text
    pass as a finished report ([§10.4](#104-the-two-call-styles)).
-4. **Pipeline failure is terminal but clean.** Any other throw is caught in the route,
-   emitted as an `error` frame, and the stream is closed. Missing API keys surface here. Since a
-   stalled draft is now a throw rather than a silently truncated report, a provider that goes
-   quiet mid-draft ends the run instead of persisting a short report under `status: "complete"`
-   — the more honest failure, but the research behind it is lost either way
-   ([§20](verification.md#20-known-limitations-and-honest-gaps) row 21).
+4. **Pipeline failure is terminal, but what it reached is saved.** Any other throw is caught in
+   the route, emitted as an `error` frame, and the stream is closed. Missing API keys surface
+   here. Since a stalled draft is a throw rather than a silently truncated report, a provider
+   that goes quiet mid-draft ends the run instead of persisting a short report under
+   `status: "complete"`. The research is no longer lost with it: `runResearch` saves the plan,
+   sources, steps and streamed draft under `status: "stopped"` or `"failed"` with the error
+   message, so the run appears in history and can be reopened
+   ([ADR-30](decisions.md#adr-30-a-stopped-or-failed-run-is-still-stored)).
 
 **Why 400 errors are sent *before* the SSE headers:** once `writeHead(200, text/event-stream)`
 is called you can no longer send a status code. Validation must happen first, which is why

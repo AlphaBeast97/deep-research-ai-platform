@@ -175,8 +175,9 @@ Each entry: the decision, what was rejected, why, and what it costs.
 - **Cost:** the revision's ~6 s and its tokens on every run, plus a second streamed report
   that the client must be told to clear (`report-reset`). Both accepted: the user explicitly
   prioritised depth and verified integrity over latency.
-- **Safety net:** if the revision call fails or returns `< 120` words, the draft is kept and
-  `revised: false` is recorded — an improvement step may never make the output worse.
+- **Safety net:** if the revision call fails, or its output fails the fact-level gate, the
+  draft is kept and `revised: false` is recorded with the reason — an improvement step may
+  never make the output worse ([ADR-29](#adr-29-the-revision-is-judged-on-facts-not-length)).
 
 ### ADR-22: Sanitise citations instead of only reporting them
 
@@ -314,5 +315,56 @@ Each entry: the decision, what was rejected, why, and what it costs.
 - **Boundary:** it is a *landing-page* dependency. The signed-in app animates with CSS keyframes
   (`.rise`, the status pulse, the step shimmer) and keeps no motion imports of its own, so the
   library's blast radius stays the marketing page.
+
+### ADR-28: The critique carries its own corrections
+
+- **Decision:** every critique issue must ship a self-contained `fix` — the replacement
+  sentence, "delete this claim", or "state that this is not established". `normalise` marks each
+  issue `actionable`, and only actionable issues reach the revisor
+  (`critic.actionableIssues`). Fix-less issues are still stored and shown to the reader.
+- **Rejected:** giving the revision pass the full page text the critic reads, so it could look
+  up the correction itself.
+- **Why:** the revisor works from the draft, the gathered findings and the critique — the same
+  evidence the writer had, since the writer never received page text either. Shipping whole
+  pages into the revision would make it the largest prompt in the pipeline and invite a
+  re-research pass inside an edit. The critic is the agent holding the source text, so the
+  correction belongs in its output. A fix that says "verify this figure against [4]" is not an
+  instruction; it is a finding the revisor can only guess at.
+- **Boundary:** the criticism itself is unchanged — `hasMaterialIssues` and the verdict still
+  count every issue, because whether a problem exists is independent of whether the critic
+  phrased the remedy well.
+
+### ADR-29: The revision is judged on facts, not length
+
+- **Decision:** `writer.revisionRejection` accepts a revision unless it is empty, drops every
+  citation, has no `##` headings left, or keeps fewer than half of the draft's figures (when
+  the draft had at least five). The reason is recorded in `revisionRejected` and shown to the
+  user.
+- **Rejected:** `wordCount(candidate) >= 120`, and any other floor on length.
+- **Why:** the old test measured that the model produced *something*, not that the result was
+  better. It accepted a 130-word stub and rejected a shorter revision that had removed
+  unsupported claims — the exact outcome the pass exists to produce, and the reason the length
+  ranges were reframed as ceilings ([ADR-25](#adr-25-six-selectable-report-formats)). The four
+  new rules each catch a specific way a rewrite goes wrong: degeneration, de-citation,
+  fragmenting, and discarding verified content.
+- **Cost:** a revision that legitimately deletes most figures would be rejected; the bar is
+  lenient (half, and only with five or more present) and the fallback is the draft, which is
+  the safe direction.
+
+### ADR-30: A stopped or failed run is still stored
+
+- **Decision:** `runResearch` wraps the pipeline; on any throw it saves what the run reached
+  with `status: "stopped"` (the stop switch aborted) or `"failed"`, plus `error`. The record
+  carries the plan, sources, steps, phases, usage and whatever draft text was streamed.
+- **Rejected:** persisting nothing on failure (the previous behaviour), and persisting the
+  partial draft as `status: "complete"`.
+- **Why:** a run costs real search and model spend, and a stop or crash used to throw that away
+  before the persist phase — the history list and the reopened report were both empty. Saving
+  it under an honest status keeps the evidence and the cost visible, and the UI already knows
+  how to render a partial report (`stopped` shows a warning that the critique and citation
+  audit never ran).
+- **Boundary:** nothing is saved when the run never got a plan or a single source — there
+  would be nothing to reopen. A revision that was never accepted is not stored over the draft
+  (see [ADR-29](#adr-29-the-revision-is-judged-on-facts-not-length)).
 
 ---

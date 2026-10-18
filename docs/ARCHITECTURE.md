@@ -279,13 +279,15 @@ backend/
                                    owns the gap loop, deep fetch, page-text Map
       planner.js                   topic → scope + themed sub-questions + title
       researcher.js                sub-question + sources → cited findings,
-                                   coverage, confidence; needsFollowUp()
+                                   coverage, confidence; needsFollowUp();
+                                   mergeExtractions() across gap rounds
       followups.js                 gaps → new gap-targeted queries (dedupes alreadyAsked)
       critic.js                    draft → typed critique; hasMaterialIssues()
       citations.js                 pure: auditCitations() + sanitizeCitations()
       normalize.js                 shared asText()/asStrings() coercions for model JSON
       writer.js                    everything → streamed draft (writeDraft),
-                                   draft + critique → streamed revision (reviseReport)
+                                   draft + critique → streamed revision (reviseReport),
+                                   revisionRejection() for an unusable rewrite
       sources.js                   the run's citation namespace: number a URL once, reuse it
                                    for later sub-questions (SourceIndex)
       prompts.js                   all prompt text (systems + per-format structures); zero logic
@@ -299,12 +301,14 @@ backend/
     db/
       index.js                     storage facade; owner-scoped reads/writes
       mongoStore.js                Mongoose adapter (only store)
-  test/                            node:test suite for the pure logic (`npm test`, 41 tests)
+  test/                            node:test suite (`npm test`, 57 tests)
     citations.test.js              audit, sanitiser, and the list-indentation regression
     sources.test.js                numbering, cross-sub-question reuse, URL normalisation
-    researcher.test.js             finding validation + what triggers another round
+    researcher.test.js             finding validation, round merging, follow-up triggers
     concurrency.test.js            order, the concurrency limit, failure propagation
-    critic.test.js                 critique normalisation and severity rules
+    critic.test.js                 critique normalisation, severity and actionability rules
+    orchestrator.test.js           the stored record shape, complete and partial runs
+    writer.test.js                 the revision gate: what makes a rewrite unusable
     llm.test.js                    abort-signal composition + error translation
 frontend/
   index.html                       entry: favicon, title, description, mounts /src/main.jsx

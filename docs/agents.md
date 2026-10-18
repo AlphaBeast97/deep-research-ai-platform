@@ -170,7 +170,7 @@ under-served. The researcher is therefore asked to output an honest `coverage` e
 ```
 round = 0
 while round < 1 + RESEARCH_MAX_ROUNDS:
-    extract(...)
+    extraction = merge(extraction, extract(...))   # never replaces an earlier round
     if coverage >= COVERAGE_FLOOR: break
     queries = proposeQueries(subQuestion, alreadyAsked, gaps)   # skip if empty
     if queries.empty: break
@@ -190,6 +190,13 @@ Four deliberate properties of this loop:
    the loop breaks on it. Iteration is bounded by evidence, not by a turn counter.
 4. **The bound is `1 + RESEARCH_MAX_ROUNDS`** — `RESEARCH_MAX_ROUNDS=0` disables the loop
    entirely, giving back the original single-pass behaviour with one env var.
+5. **A round never erases an earlier one.** Each round's extraction is *merged* into what the
+   loop already found (`mergeExtractions`): findings are unioned by claim text, a repeated
+   claim keeps the union of its citations and its strongest confidence, `coverage` takes the
+   better of the two estimates, and gaps are unioned. Rounds used to overwrite the variable,
+   so a second round that came back thin — or failed outright — silently discarded findings
+   the run had already paid to establish, and a later `coverage: 0` could not be distinguished
+   from a topic with nothing in it.
 
 In the measured live run the gap loop fired **4 times** across 5 sub-questions and added 8
 follow-up searches ([§15.1](verification.md#151-end-to-end-live-run)) — that is where most of the run's
@@ -229,6 +236,18 @@ the pipeline inserts a **separate** critique call with a hostile-auditor prompt,
   `uncited`, `miscitation`, `overreach`, `contradiction`, `missing-angle`, `structure` —
   each with a severity, the offending claim, the problem, and the fix. A review that returns
   prose cannot be acted on reliably; a review that returns typed issues can.
+- **The critique carries the correction, because the revisor cannot see the sources.** The
+  revisor gets the draft, the gathered findings and the critique — never page text, exactly
+  the evidence the writer had when it wrote the draft. A fix that says "check this against
+  [4]" is therefore unactionable, and the critic is the only agent holding the text that
+  could settle it. Every issue now carries a self-contained fix (the replacement sentence,
+  "delete this claim", or "state that this is not established"). Issues without one stay in
+  the record for the reader, are not handed to the revision, and are not counted as findings
+  being applied ([ADR-28](decisions.md#adr-28-the-critique-carries-its-own-corrections)).
+- **The revision is not a re-research pass.** Giving it page text would make the revision
+  prompt the largest in the pipeline (whole draft plus every source) and invite it to go
+  looking rather than apply what the critique found. Its rules say so explicitly: if a fix
+  would need a detail it was not given, drop the claim or mark it unestablished.
 - **Revision runs whenever `RESEARCH_CRITIQUE=true`, regardless of the verdict.** This was
   originally gated on the critic's own `verdict` field and that was a **bug**: in the first
   measured run the critic returned `verdict: "solid"` *while also reporting two issues*, and
@@ -237,15 +256,20 @@ the pipeline inserts a **separate** critique call with a hostile-auditor prompt,
   for the reader; it is not a control-flow switch. ([ADR-21](decisions.md#adr-21-the-critique-is-advisory-the-revision-is-unconditional))
 - **The revision is guarded and has a fallback.** If the revision call throws — including a
   stream the stall watchdog cut off ([ADR-26](decisions.md#adr-26-two-budgets-for-a-streamed-answer))
-  — or produces an implausibly short document (`wordCount < 120`), the pipeline keeps the draft
-  and records `revised: false` rather than shipping a truncated report. The revision is an
-  improvement step, and an improvement step must never be able to make the output worse than not
-  running it. That guard needed one correction to actually hold: aborting a stream does not
-  reliably surface as an error, so a stalled revision used to return its partial text as though
-  it had finished — exactly the text `wordCount >= 120` would accept. The stall is now
-  re-asserted after the stream ends ([§15.5](verification.md#155-the-stall-watchdog-measured)),
-  and the same fix makes a stalled *draft* a failure rather than a short report persisted as
-  complete ([§20](verification.md#20-known-limitations-and-honest-gaps) row 21).
+  — or the output is unusable, the pipeline keeps the draft and records `revised: false`
+  together with the reason in `revisionRejected`, rather than shipping a worse document. The
+  revision is an improvement step, and an improvement step must never be able to make the
+  output worse than not running it. That guard needed one correction to actually hold:
+  aborting a stream does not reliably surface as an error, so a stalled revision used to
+  return its partial text as though it had finished — which the old gate accepted. The stall
+  is now re-asserted after the stream ends
+  ([§15.5](verification.md#155-the-stall-watchdog-measured)).
+- **"Usable" is a fact check, not a word count.** `revisionRejection` rejects an empty
+  revision, one that dropped every citation, one with no section headings left, and one that
+  lost the majority of the draft's figures (fewer than half kept, and only when the draft had
+  at least five). The previous test was `wordCount >= 120`, which cut both ways: a 130-word
+  stub passed, while a shorter revision that had deleted unsupported claims — the outcome the
+  pass is *for* — was thrown away ([ADR-29](decisions.md#adr-29-the-revision-is-judged-on-facts-not-length)).
 - **The critique covers the draft, and only the draft.** The revision is not re-audited: the
   only check it faces afterwards is the citation audit ([§7.8](#78-the-citation-audit)), which
   counts citation numbers and cannot notice a claim the rewrite left uncited, an overreach it

@@ -400,6 +400,14 @@ Rules:
 - Be specific and adversarial. Quote or paraphrase the offending text.
 - Only raise an issue you can point at in the draft or the sources. Do not
   fabricate problems, and never invent a quote that is not in the draft.
+- Every issue must carry a "fix" the revisor can apply without reading the
+  sources: the replacement sentence, or "delete this claim", or "state that this
+  is not established". You are the agent holding the source text — put the
+  corrected figure, date or name in the fix yourself. Never write a fix that
+  tells the revisor to check, verify or look something up: an issue with no such
+  fix is a finding for the reader, not an instruction, and will not be applied.
+- For a citation problem, name the citation and say what it should become — the
+  correct source number, or that the claim should be dropped.
 - Be thorough before concluding "solid": a report is rarely flawless. Even when
   nothing is outright wrong, most drafts contain claims that would be far
   stronger with a number, date or unit attached, caveats left unstated, sources
@@ -422,7 +430,7 @@ Respond with JSON:
       "severity": "high" | "medium" | "low",
       "claim": "<the offending text, quoted or paraphrased>",
       "problem": "<what is wrong with it>",
-      "fix": "<what the revision should say or do instead>"
+      "fix": "<the replacement sentence, or \"delete this claim\", or \"state that this is not established\">"
     }
   ],
   "citationProblems": [
@@ -489,6 +497,10 @@ Rules:
   critique flags as wrong.
 - Add the missing angles the critique names, using only the provided findings
   and sources.
+- You are given the critique's stated corrections and the gathered findings, not
+  the sources' page text. Apply each correction as written; if one would need a
+  detail you were not given, do not invent it — drop the claim or say the
+  sources do not establish it.
 - Keep everything that was already correct — this is a revision, not a rewrite.
   Preserve the verified numbers, structure and citations from the draft.
 - Do not mention the critique, the revision process, or that you are an AI. The

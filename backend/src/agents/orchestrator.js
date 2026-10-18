@@ -18,6 +18,11 @@ export const wordCount = (text) => (text.trim() ? text.trim().split(/\s+/).lengt
 /**
  * Runs the full multi-agent research pipeline for one query.
  *
+ * A run that stops or fails part-way through is still persisted, under
+ * `status: "stopped"` or `"failed"`, with whatever it reached — see
+ * `savePartial`. The failure is then re-thrown, so the caller's error handling
+ * is unchanged.
+ *
  * Phases, in order:
  *   plan → research (search, deep-fetch, gap-filling rounds) → draft
  *        → critique → revision → citation audit → persist
@@ -31,13 +36,22 @@ export const wordCount = (text) => (text.trim() ? text.trim().split(/\s+/).lengt
  * checkpoint and cancels the model call in flight, instead of leaving the
  * pipeline (and its API spend) running for a client that has gone away.
  */
-export async function runResearch({
-  query,
-  ownerId,
-  reportType,
-  onEvent = () => {},
-  signal,
-}) {
+export async function runResearch(options) {
+  const progress = {}
+  try {
+    return await pipeline(options, progress)
+  } catch (err) {
+    // A stopped or failed run still cost money and still produced evidence the
+    // user can read. Save what was reached instead of discarding it, then let
+    // the caller report the failure as before.
+    await savePartial(options, progress, err)
+    throw err
+  }
+}
+
+async function pipeline(options, progress) {
+  const { query, ownerId, reportType, onEvent = () => {}, signal } = options
+
   // The chosen report type drives the writer's structure and stance. Resolved
   // once here so an unknown or missing value degrades to the default instead of
   // reaching a prompt as `undefined`.
@@ -57,6 +71,20 @@ export async function runResearch({
   /** True once the caller has stopped the run. */
   const stopped = () => Boolean(signal?.aborted)
   const usage = { promptTokens: 0, completionTokens: 0, totalTokens: 0 }
+
+  // `savePartial` runs outside this function, so everything it needs is exposed
+  // here. Arrays and the usage object are shared by reference and grow in place.
+  Object.assign(progress, {
+    runId,
+    query,
+    ownerId,
+    typeId: type.id,
+    startedAt,
+    steps,
+    phases,
+    sources,
+    usage,
+  })
 
   let currentPhase = null
   let phaseStart = Date.now()
@@ -210,24 +238,30 @@ export async function runResearch({
         )
       }
 
+      // Each round's extraction is folded into what earlier rounds found rather
+      // than replacing it: a second round that comes back thin, or fails, must
+      // not discard findings the run already established (mergeExtractions).
+      let roundExtraction
       if (subSources.length === 0) {
-        extraction = researcher.emptyExtraction(sq.question, sq.intent)
+        roundExtraction = researcher.emptyExtraction(sq.question, sq.intent)
       } else {
         try {
           const res = await researcher.extract(sq.question, sq.intent, withPageText(subSources), {
             signal,
           })
           addUsage(res.usage)
-          extraction = res
+          roundExtraction = res
         } catch (err) {
           // A stop is not a failure, and a failure must not sink the run: the
           // other sub-questions are already researched and paid for. Carry it
           // as an unanswered sub-question and keep going.
           if (stopped() || isAbortError(err)) throw err
           logStep('researcher', 'Extraction failed', err.message)
-          extraction = researcher.failedExtraction(sq.question, sq.intent, err.message)
+          roundExtraction = researcher.failedExtraction(sq.question, sq.intent, err.message)
         }
       }
+
+      extraction = researcher.mergeExtractions(extraction, roundExtraction)
 
       logStep(
         'researcher',
@@ -270,6 +304,7 @@ export async function runResearch({
   logStep('planner', 'Decomposing the topic', `“${query}”`, 'start')
 
   const plan = await planner.plan(query, { signal })
+  progress.plan = plan
   addUsage(plan.usage)
   logStep('planner', 'Plan ready', `${plan.subQuestions.length} sub-questions`)
   emit({ type: 'plan', title: plan.title, scope: plan.scope, subQuestions: plan.subQuestions })
@@ -294,6 +329,8 @@ export async function runResearch({
 
   const totalRounds = research.reduce((n, r) => n + (r.rounds || 1), 0)
   const fetchedPages = pageTexts.size
+  progress.research = research
+  progress.searchRounds = totalRounds
 
   // ── 3. DRAFT (streamed) ────────────────────────────────────
   setPhase('draft')
@@ -305,6 +342,9 @@ export async function runResearch({
     'start',
   )
 
+  // The draft is accumulated here as well as streamed: if the run is stopped or
+  // fails before the revision lands, this is what the partial record keeps.
+  let draftText = ''
   const draft = await writer.writeDraft({
     query,
     plan,
@@ -312,14 +352,21 @@ export async function runResearch({
     sources,
     rounds: totalRounds,
     reportType: type.id,
-    onToken: (text) => emit({ type: 'token', text }),
+    onToken: (text) => {
+      draftText += text
+      progress.draft = draftText
+      emit({ type: 'token', text })
+    },
     signal,
   })
+  draftText = draft
   logStep('writer', 'Draft complete', `${wordCount(draft)} words`)
 
   let report = draft
   let critique = null
   let revised = false
+  progress.draft = draftText
+  progress.report = report
 
   // ── 4. CRITIQUE + REVISE ───────────────────────────────────
   if (config.research.critique) {
@@ -351,11 +398,16 @@ export async function runResearch({
       })
       addUsage(res.usage)
       critique = res.critique
+      progress.critique = critique
 
+      // The revisor can only apply a fix the critic actually stated. Issues
+      // without one stay in the record for the reader, but are not handed to
+      // the revision as work to do.
+      const applicable = critic.actionableIssues(critique)
       logStep(
         'critic',
         'Critique complete',
-        `${critique.issues.length} issue(s) · verdict: ${critique.verdict}` +
+        `${critique.issues.length} issue(s) · ${applicable.length} with a stated fix · verdict: ${critique.verdict}` +
           `${critic.hasMaterialIssues(critique) ? ' · material' : ''}` +
           `${res.fullTextSources ? ` · ${res.fullTextSources} source(s) read in full` : ''}`,
       )
@@ -378,20 +430,23 @@ export async function runResearch({
       setPhase('revision')
       // Tell the client the report text is about to be replaced by the revision.
       emit({ type: 'report-reset' })
+      const applicable = critic.actionableIssues(critique)
       emit({
         type: 'status',
         message:
-          critique.issues.length > 0
-            ? `Revising the report — applying ${critique.issues.length} critique finding(s)…`
+          applicable.length > 0
+            ? `Revising the report — applying ${applicable.length} critique finding(s)…`
             : 'Revising the report — tightening quantification and citations…',
       })
       logStep(
         'writer',
         'Revising the report',
-        critique.recommendations[0] ||
-          (critique.issues.length
-            ? `applying ${critique.issues.length} issue(s)`
-            : 'second pass: tighten figures and citations'),
+        applicable.length
+          ? `applying ${applicable.length} issue(s)` +
+            (critique.issues.length > applicable.length
+              ? ` · ${critique.issues.length - applicable.length} left to the reader (no stated fix)`
+              : '')
+          : 'second pass: tighten figures and citations',
         'start',
       )
 
@@ -402,22 +457,30 @@ export async function runResearch({
           research,
           sources,
           draft,
-          critique,
+          // Only the issues that came with an applicable correction; the rest
+          // are audit findings, not instructions (see critic.actionableIssues).
+          critique: { ...critique, issues: applicable },
           reportType: type.id,
           onToken: (text) => emit({ type: 'token', text }),
           signal,
         })
 
-        // Guard against a truncated or empty revision wiping out a good draft.
-        if (candidate && wordCount(candidate) >= 120) {
+        // Guard against a truncated, citation-free or structure-free revision
+        // wiping out a good draft. Deliberately not a word count: a short
+        // revision that removed unsupported claims is the desired outcome.
+        const problem = writer.revisionRejection(draft, candidate)
+        if (!problem) {
           report = candidate
           revised = true
+          progress.report = report
+          progress.revised = true
           logStep('writer', 'Revision complete', `${wordCount(report)} words`)
         } else {
-          logStep('writer', 'Revision unusable', 'fell back to the draft')
+          progress.revisionRejected = problem
+          logStep('writer', 'Revision unusable', problem)
           emit({
             type: 'status',
-            message: 'Revision produced nothing usable — keeping the draft.',
+            message: `Revision unusable (${problem}) — keeping the draft.`,
           })
         }
       } catch (err) {
@@ -440,6 +503,8 @@ export async function runResearch({
   // chip in the UI, so it can never survive into a stored report.
   report = sanitizeCitations(report, validIndexes)
   const audit = { ...auditCitations(report, sources), invalidRemoved: before.invalid.length }
+  progress.report = report
+  progress.audit = audit
 
   if (before.invalid.length) {
     logStep(
@@ -458,36 +523,87 @@ export async function runResearch({
   // ── 6. PERSIST ─────────────────────────────────────────────
   endPhase()
 
-  const record = {
-    id: runId,
-    ownerId,
-    query,
-    title: plan.title,
-    reportType: type.id,
-    scope: plan.scope || '',
-    status: 'complete',
-    createdAt: new Date().toISOString(),
-    durationMs: Date.now() - startedAt,
-    subQuestions: plan.subQuestions.map((q) => q.question),
-    themes: plan.subQuestions.map((q) => q.theme || ''),
-    sources,
-    research,
-    report,
-    critique,
-    audit,
-    revised,
-    searchRounds: totalRounds,
-    phases,
-    steps,
-    usage,
-  }
+  const record = recordFor(progress, 'complete')
 
   try {
     await db.save(record)
+    progress.saved = true
   } catch (err) {
     emit({ type: 'status', message: `Warning: could not save report (${err.message})` })
   }
 
   emit({ type: 'done', record })
   return record
+}
+
+/**
+ * The stored shape, shared by a finished run and a partial one.
+ *
+ * Both are the same document; only `status`, `error` and how complete the
+ * fields are differ. Keeping one builder is what stops a saved failure from
+ * drifting into a shape the history list and the report view cannot read.
+ */
+export function recordFor(progress, status, extra = {}) {
+  const plan = progress.plan
+  return {
+    id: progress.runId,
+    ownerId: progress.ownerId,
+    query: progress.query,
+    title: plan?.title || progress.query,
+    reportType: progress.typeId,
+    scope: plan?.scope || '',
+    status,
+    createdAt: new Date().toISOString(),
+    durationMs: Date.now() - (progress.startedAt || Date.now()),
+    subQuestions: (plan?.subQuestions || []).map((q) => q.question),
+    themes: (plan?.subQuestions || []).map((q) => q.theme || ''),
+    sources: progress.sources || [],
+    research: progress.research || [],
+    // A revision that was never accepted must not overwrite the draft: the
+    // draft is the last complete document the run produced.
+    report: progress.report || progress.draft || '',
+    critique: progress.critique ?? null,
+    audit: progress.audit ?? null,
+    revised: Boolean(progress.revised),
+    revisionRejected: progress.revisionRejected ?? null,
+    searchRounds: progress.searchRounds ?? 0,
+    phases: progress.phases || [],
+    steps: progress.steps || [],
+    usage: progress.usage || { promptTokens: 0, completionTokens: 0, totalTokens: 0 },
+    ...extra,
+  }
+}
+
+/**
+ * Persist a run that stopped or failed part-way through.
+ *
+ * Before this, an abort (user pressed Stop, tab closed, run deadline) threw out
+ * of the pipeline before the persist phase, so minutes of searching and writing
+ * vanished from history. Nothing is saved when the run never got as far as a
+ * plan or a single source — there would be no report to open.
+ */
+async function savePartial(options, progress, err) {
+  const { ownerId, reportType } = options
+  // A completed run is already stored; a late throw (a failed `done` frame, say)
+  // must not downgrade its record to "failed".
+  if (progress.saved) return
+  if (!progress.plan && !(progress.sources || []).length) return
+  if (!ownerId) return
+
+  // The stop switch is the authority on whether this was a stop: an abort reason
+  // set by a caller is not necessarily named `AbortError`, and recording a
+  // stopped run as a failure would misreport it in history.
+  const stopped = isAbortError(err) || Boolean(options.signal?.aborted)
+  const record = recordFor(progress, stopped ? 'stopped' : 'failed', {
+    reportType: progress.typeId || resolveReportType(reportType).id,
+    error: err.message || 'The run did not finish.',
+  })
+
+  try {
+    await db.save(record)
+  } catch (saveErr) {
+    // The original failure is what the user needs to see; a storage problem
+    // while recording it must not replace that message.
+    console.error('[research] could not save the partial run:', saveErr)
+  }
 }
