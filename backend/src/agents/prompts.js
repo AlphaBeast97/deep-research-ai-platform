@@ -188,10 +188,12 @@ export const ANALYST_SPEC = `Structure (GitHub-flavoured Markdown):
    recent vs dated). Use the per-finding confidence the researchers recorded.
 8. "## Limitations & open questions" — what this research could not establish.
 
-Length: 2,400–3,200 words. The section list above is a skeleton to fill with
-substance, not a summary to pad out: each analytical section should run roughly
-300–450 words, and every paragraph should carry a figure, date, name or
-comparison taken from the sources.`
+Length: no quota. Cover the gathered findings and then stop — that usually lands
+between 1,500 and 3,000 words, and the upper number is a ceiling rather than a
+target. The section list above is a skeleton to fill with substance, not a
+summary to pad out: each analytical section runs as long as its evidence
+justifies, and every paragraph should carry a figure, date, name or comparison
+taken from the sources.`
 
 export const BRIEF_SPEC = `Structure (GitHub-flavoured Markdown):
 1. A single H1 title.
@@ -201,8 +203,8 @@ export const BRIEF_SPEC = `Structure (GitHub-flavoured Markdown):
 4. "## What to watch" — 2-4 bullets naming the signals that would change the picture.
 5. At most one small table, and only if it carries the comparison better than prose.
 6. "## Limitations" — 2-3 bullets on what this brief could not establish.
-Length: 400–600 words — a one-pager, not a single paragraph. There is no
-methodology section.`
+Length: no quota — usually 400–600 words. A one-pager, not a single paragraph,
+and never padded to reach the higher number. There is no methodology section.`
 
 export const COMPARISON_SPEC = `Structure (GitHub-flavoured Markdown):
 1. A single H1 title.
@@ -218,9 +220,10 @@ export const COMPARISON_SPEC = `Structure (GitHub-flavoured Markdown):
    declare an overall winner the sources do not support; say so if they do not.
 7. "## Confidence & limitations" — how strong the comparison is and what is missing.
 
-Length: 2,000–2,600 words. The table summarises the argument; it does not
-replace it. Every dimension section must explain how the options differ and why,
-with the figures the sources give.`
+Length: no quota. Explaining how the options differ usually lands between 1,500
+and 2,600 words; the upper bound is a ceiling, not a target. The table summarises
+the argument; it does not replace it. Every dimension section must explain how
+the options differ and why, with the figures the sources give.`
 
 export const TIMELINE_SPEC = `Structure (GitHub-flavoured Markdown):
 1. A single H1 title.
@@ -235,8 +238,10 @@ export const TIMELINE_SPEC = `Structure (GitHub-flavoured Markdown):
 7. "## What's next" — the indicated trajectory, with the uncertainty stated.
 8. "## Confidence & limitations"
 
-Length: 1,600–2,200 words. The dated entries stay short — the length belongs to
-the drivers and the analysis of why the sequence went this way.`
+Length: no quota — usually 1,200–2,200 words, with the upper bound as a ceiling.
+The dated entries stay short; whatever length the report has belongs to the
+drivers and the analysis of why the sequence went this way, and only where the
+sources support it.`
 
 export const RISK_SPEC = `Structure (GitHub-flavoured Markdown):
 1. A single H1 title.
@@ -251,9 +256,9 @@ export const RISK_SPEC = `Structure (GitHub-flavoured Markdown):
    to discuss, and what that silence might mean.
 6. "## Confidence & limitations"
 
-Length: 1,800–2,400 words. The register is the index to the report, not the
-report: each material risk gets its own section explaining how the harm would
-actually occur.`
+Length: no quota — usually 1,400–2,400 words, with the upper bound as a ceiling.
+The register is the index to the report, not the report: each material risk gets
+its own section explaining how the harm would actually occur.`
 
 export const EVIDENCE_SPEC = `Structure (GitHub-flavoured Markdown):
 1. A single H1 title.
@@ -268,14 +273,25 @@ export const EVIDENCE_SPEC = `Structure (GitHub-flavoured Markdown):
    evidence (primary vs secondary, corroborated vs single-source, date).
 8. "## Confidence & limitations"
 
-Length: 2,000–2,600 words. Spend it on the evidence itself: which claims hold,
-on what basis, and what would change the assessment.`
+Length: no quota. Spend it on the evidence itself, usually 1,500–2,600 words
+with the upper bound as a ceiling: which claims hold, on what basis, and what
+would change the assessment.`
 
 // Rules shared by every report type, appended to the chosen structure.
-const SHARED_RULES = `Length & depth:
-- The format above states a word range. It is a floor, not a suggestion: a draft
-  that lands materially under it has summarised the findings instead of
-  reporting them, and it will be sent back to be expanded.
+const SHARED_RULES = `Correctness comes before length:
+- The report is judged on whether its claims are true and supported, not on how
+  long it is. One unsupported figure does more damage than a slightly short
+  section, and a page of correct analysis is worth more than three pages that
+  repeat themselves.
+- The word range in the format is a typical output and a ceiling, never a quota.
+  Stop when the evidence is exhausted; never add a sentence, a restatement or a
+  hedge to reach a count. If the evidence cannot support the range, write the
+  report it does support and say so where limitations are discussed.
+- Every number, date, name and unit must come from the provided findings or
+  sources. Where the two disagree, prefer the source; where neither settles it,
+  write "not established" instead of the more plausible figure.
+
+Depth:
 - Length comes from depth, never from volume. For each finding give the
   mechanism, the magnitude, the comparison, the caveat, and what follows from
   it. Numbers, dates, named entities and units are depth; adjectives,
@@ -284,8 +300,6 @@ const SHARED_RULES = `Length & depth:
   report is either missing content or a genuine conflict — the second belongs in
   the section that handles conflicts, not in the bin.
 - Never pad, never repeat yourself, and never invent detail to reach a length.
-  If the evidence genuinely cannot support the range, write the report it does
-  support and say so where limitations are discussed.
 
 Detail requirements:
 - Prefer the concrete over the general. "Costs are falling" is worthless;
@@ -377,9 +391,10 @@ Audit for exactly these failure modes:
    findings, that the draft simply ignores.
 6. STRUCTURE — a missing required section, weak organisation, an incorrect or
    missing diagram, a place where a table would carry the comparison better, or a
-   report that lands materially under the length range its format states: name
-   the sections that are too thin, and what the gathered findings could add to
-   them.
+   required section that is thin because gathered findings belonging there are
+   absent: name the missing material. Do not raise length itself as an issue — a
+   short report whose claims are all supported is not a defect, and a long one
+   that repeats itself is.
 
 Rules:
 - Be specific and adversarial. Quote or paraphrase the offending text.
@@ -478,9 +493,10 @@ Rules:
   Preserve the verified numbers, structure and citations from the draft.
 - Do not mention the critique, the revision process, or that you are an AI. The
   output must read as a finished report.
-- Revising is not an excuse to shorten: the revision must still meet the length
-  range in the specification, so expand a thin section with material from the
-  provided findings rather than trimming the report down.
+- Revising is not an excuse to pad either: a revision that is shorter because an
+  unsupported, duplicated or uncited claim was removed is an improvement. Never
+  add words to preserve a length — the specification's range is a ceiling, and
+  correctness outranks it.
 
 ${spec}
 

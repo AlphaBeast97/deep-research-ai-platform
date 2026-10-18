@@ -232,7 +232,7 @@ Each entry: the decision, what was rejected, why, and what it costs.
 
 - **Decision:** the user picks the deliverable before running — analyst report, executive
   brief, comparison, timeline, risk assessment, or evidence review. Each format is a distinct
-  section structure, a distinct writing stance and a distinct **length range**, and it drives
+  section structure, a distinct writing stance and a distinct **length ceiling**, and it drives
   the writer, revisor and critic prompts for the run. The choice is stored on the report so it
   can be labelled on reload.
 - **Rejected:** one universal report with a "length" or "tone" knob; and letting the user
@@ -254,8 +254,9 @@ Each entry: the decision, what was rejected, why, and what it costs.
   invalid id in the API body is rejected with `400`.
 - **Cost:** six structures to keep in sync with what the critic expects. That cost is bounded
   by the same single-string rule: the critic is told which format was requested and audits
-  against *that* spec, so its `structure` check — including the length range it now enforces —
-  moves whenever the format moves ([§8.5](agents.md#85-the-critic-prompt)).
+  against *that* spec, so its `structure` check — the required sections, tables and diagrams —
+  moves whenever the format moves ([§8.5](agents.md#85-the-critic-prompt)). Length is
+  deliberately excluded from that check: the range is a ceiling the writer may stop under.
 
 ---
 

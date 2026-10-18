@@ -341,8 +341,9 @@ plus the per-format structure blocks they are composed with (see
 `writer.js` and `critic.js`'s reviser step are both composed from the *same* format spec for a
 given run, so the revision is guaranteed to target the structure the draft was built against.
 The default format is a **long-form analyst** specification, not a summary. Each of the six
-formats supplies its own section list and its own **length range** — "long-form" is a number
-rather than an adjective. The analyst one is:
+formats supplies its own section list and its own **word budget** — a ceiling rather than a
+target, so "long-form" is a number the report may reach when the evidence fills it, not a
+length it must manufacture. The analyst one is:
 
 1. `# ` title — the report's own headline, not the raw query.
 2. `## Scope & method` — what was investigated, what was deliberately excluded, how many
@@ -361,32 +362,40 @@ rather than an adjective. The analyst one is:
    *misleading*, and its absence is one of the things the critic checks for.
 
 The ranges themselves live in the same per-format strings, so the writer that drafts the
-report and the critic that audits it are working from the same number:
+report and the revisor that repairs it work from the same text. The critic is explicitly
+told **not** to raise length as an issue: a short report whose claims are all supported is
+not a defect, and a long one that repeats itself is.
 
-| Format | Range | Where the length goes |
+| Format | Typical output | Where the length goes |
 |---|---|---|
-| Analyst report | 2,400–3,200 words | 4–8 sections at roughly 300–450 words each — room for the tables, the conflict section and the confidence section without padding |
-| Evidence review | 2,000–2,600 words | the evidence itself: which claims hold, on what basis, and what would change the assessment |
-| Comparison | 2,000–2,600 words | the table summarises the argument; each dimension still needs its explanation of *why* the options differ |
-| Risk assessment | 1,800–2,400 words | the register is the index; each risk's mechanism of harm is the body |
-| Timeline | 1,600–2,200 words | the entries are short by nature — the drivers and ordering are the analysis |
-| Executive brief | 400–600 words | deliberately a one-pager, and deliberately still a floor |
+| Analyst report | 1,500–3,000 words, upper bound a ceiling | 4–8 sections, each as long as its evidence justifies — room for the tables, the conflict section and the confidence section without padding |
+| Evidence review | 1,500–2,600 words | the evidence itself: which claims hold, on what basis, and what would change the assessment |
+| Comparison | 1,500–2,600 words | the table summarises the argument; each dimension still needs its explanation of *why* the options differ |
+| Risk assessment | 1,400–2,400 words | the register is the index; each risk's mechanism of harm is the body |
+| Timeline | 1,200–2,200 words | the entries are short by nature — the drivers and ordering are the analysis |
+| Executive brief | 400–600 words | deliberately a one-pager; the higher number is not a target |
 
-Every range is written as a floor with an explicit escape clause (see `SHARED_RULES`): the
-target is a lower bound on *evidence-covered* prose, not a quota to be met with filler.
+Every range is written as a **ceiling with a stop rule** (see `SHARED_RULES`): the writer
+covers the gathered findings and then stops. A report that is shorter because the evidence
+is thin is the intended output, not a failure, and correctness outranks the range in every
+case — a figure that cannot be traced to a source is removed even when removing it takes the
+report under the range.
 
-Plus four cross-cutting rule blocks, shared by every format:
+Plus five cross-cutting rule blocks, shared by every format:
 
-- **Length & depth** — the block that makes the range above binding. It states the rule
-  (a draft "materially under" the range is sent back), where length has to come from
-  (mechanism, magnitude, comparison, caveat, consequence — "numbers, dates, named entities
-  and units are depth; adjectives, scene-setting and restatement are filler"), and the escape
-  hatch that keeps the target honest: if the evidence cannot support the range, write the
-  shorter report and say so where limitations are discussed. It also names the other failure
-  this target creates — unused findings — and routes a genuine conflict to the section that
-  handles conflicts rather than out of the report.
+- **Correctness comes before length** — the block that ranks truth over volume. It states
+  the ordering (one unsupported figure does more damage than a slightly short section), the
+  stop rule (the range is a ceiling, never a quota — add no sentence, restatement or hedge
+  to reach a count), and the grounding rule: every number, date, name and unit must come
+  from the findings or sources, prefer the source where the two disagree, and write "not
+  established" where neither settles it rather than the plausible figure.
 
-- **Detail requirements** — the rule the length target spends itself on: prefer the concrete
+- **Depth** — where any remaining length has to come from (mechanism, magnitude,
+  comparison, caveat, consequence — "numbers, dates, named entities and units are depth;
+  adjectives, scene-setting and restatement are filler"), plus the unused-findings failure
+  and the ban on padding.
+
+- **Detail requirements** — the rule the depth block spends itself on: prefer the concrete
   over the general ("Costs are falling" is worthless; "cell costs fell from ~$140/kWh to
   ~$100/kWh between 2023 and 2025 [1]" is a finding), keep the report followable by a reader
   who never opens a source, and ban restating the question or commenting on "the provided
@@ -416,8 +425,9 @@ Plus four cross-cutting rule blocks, shared by every format:
 **Factoring the structure out is itself a decision:** it exists once, as a string, and both
 the draft and the revision are built from it. If the two prompts each carried their own copy
 of the skeleton, the revision could silently "improve" the report into a different shape than
-the critic audited. The shared length/detail/citation/diagram rules live in a separate
-`SHARED_RULES` block that every format appends, so no format can lose the citation rules.
+the critic audited. The shared correctness/depth/detail/citation/diagram rules live in a
+separate `SHARED_RULES` block that every format appends, so no format can lose either the
+grounding rules or the citation rules.
 See [ADR-25](decisions.md#adr-25-six-selectable-report-formats).
 
 The writer-specific design notes:
@@ -459,9 +469,10 @@ The critic is the pipeline's adversarial reviewer, and the prompt is written to 
 - **It is given the requested format's structure specification** — the same spec the writer
   was given —  so the `structure` check audits the deliverable the user asked for instead of
   judging every report as an analyst report. That spec also carries the format's word
-  range, so a draft that lands materially under it is a `structure` issue naming the thin
-  sections: the writer's target and the reviewer's yardstick are literally the same string,
-  which is what stops the two from drifting apart.
+  range, but only as a ceiling: the critic is told **not** to raise length itself, and to
+  report a thin section only when gathered findings that belong there are absent. The
+  writer's depth rule and the reviewer's yardstick are literally the same string, which is
+  what stops the two from drifting apart.
 - **It reads the same evidence the researcher did.** The sources the draft cites are expanded
   to their full page text (capped by `CRITIC_FULL_TEXT_SOURCES`), because auditing a draft
   against 800-character snippets produces both error types at once: an honest figure gets
@@ -479,10 +490,11 @@ The critic is the pipeline's adversarial reviewer, and the prompt is written to 
 - **It is told not to discuss the critique.** The revision is a replacement document, not an
   appendix — "the criticism said X, so I changed Y" is exactly the meta-commentary that would
   make the report unreadable.
-- **It must still meet the length range.** Applying a critique is an edit, not a licence to
-  cut: a revision that fixes every flag while dropping a third of the prose would pass every
-  citation check and lose the substance, so a thin section is expanded from the gathered
-  findings instead.
+- **It must not pad to a length.** Applying a critique is an edit, not a licence to expand
+  either: a revision that removes an unsupported or duplicated claim and lands shorter is an
+  improvement, and no sentence may be added to preserve the range. A section that is thin
+  *because gathered findings were omitted* is expanded from those findings — the test is
+  missing substance, never a word count.
 
 The `writer.js` module owns both streamed calls (`writeDraft`, `reviseReport`); they resolve
 the run's report format, share the `findingsBlock` helper and the format spec, so a revision
