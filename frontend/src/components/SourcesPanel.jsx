@@ -28,16 +28,26 @@ export default function SourcesPanel({ sources, uncited = [] }) {
                 key={s.id ?? s.url}
                 id={`source-${s.index}`}
                 className={cn(
-                  'source-card enter flex gap-2.5 rounded-control border border-line-soft bg-inset p-2.5 transition duration-200 hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2',
-                  isUncited && 'opacity-65 hover:opacity-100',
+                  'source-card enter flex gap-2.5 rounded-control border border-line-soft p-2.5 transition duration-200',
+                  isUncited
+                    ? 'bg-inset/60'
+                    : 'bg-inset hover:-translate-y-0.5 hover:border-accent/40 hover:bg-surface-2',
                 )}
               >
-                <span className="grid h-[22px] w-[22px] flex-none place-items-center rounded-lg bg-accent/12 text-[11.5px] font-bold text-accent">
+                <span
+                  className={cn(
+                    'grid h-[22px] w-[22px] flex-none place-items-center rounded-lg text-[11.5px] font-bold',
+                    isUncited ? 'bg-muted/12 text-muted' : 'bg-accent/12 text-accent',
+                  )}
+                >
                   {s.index}
                 </span>
                 <div className="min-w-0">
                   <a
-                    className="block text-[13px] font-medium break-words text-strong no-underline transition-colors hover:text-accent"
+                    className={cn(
+                      'block text-[13px] font-medium break-words no-underline transition-colors',
+                      isUncited ? 'text-muted' : 'text-strong hover:text-accent',
+                    )}
                     href={s.url}
                     target="_blank"
                     rel="noreferrer"
@@ -51,7 +61,7 @@ export default function SourcesPanel({ sources, uncited = [] }) {
                     </p>
                   )}
                   {isUncited && (
-                    <p className="mt-1 text-[11px] text-warn italic">
+                    <p className="mt-1 text-[11px] text-muted italic">
                       Found but not cited in the report
                     </p>
                   )}
