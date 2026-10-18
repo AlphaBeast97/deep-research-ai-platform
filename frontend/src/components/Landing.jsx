@@ -2,6 +2,7 @@ import { SignInButton, SignUpButton } from '@clerk/react'
 import Button from './ui/Button.jsx'
 import Mark from './ui/Mark.jsx'
 import Reveal from './ui/Reveal.jsx'
+import ThemeToggle from './ui/ThemeToggle.jsx'
 
 const PIPELINE = [
   {
@@ -131,6 +132,7 @@ export default function Landing() {
       <header className="flex flex-wrap items-center justify-between gap-3 py-6">
         <Brand />
         <div className="flex items-center gap-2">
+          <ThemeToggle />
           <SignInButton mode="modal">
             <Button variant="ghost" size="md">
               Sign in

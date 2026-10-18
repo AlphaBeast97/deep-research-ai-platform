@@ -326,6 +326,7 @@ frontend/
       docx.js                      Markdown → .docx (headings/tables/images/sources)
       format.js                    hostOf / timeAgo / slugify / wordCount
       motionFeatures.js            the motion feature set, kept in its own chunk
+      theme.js                     resolves and persists light / dark / system
     components/
       ui/
         Button.jsx                 primary / secondary / ghost button primitive
@@ -335,6 +336,7 @@ frontend/
         FadeBox.jsx                fade-and-blur collapse wrapper (report + trace)
         StatusPill.jsx             the animated "which step is running" bubble
         Reveal.jsx                 reveal-on-scroll wrapper built on motion
+        ThemeToggle.jsx            the light / dark / system control
       QueryForm.jsx                input, examples, run/stop
       AgentTrace.jsx               collapsible trace: step pill, plan checklist, step log
       Landing.jsx                  signed-out marketing page
@@ -348,6 +350,7 @@ frontend/
     mermaid.test.js                every repair rule, asserted against the real Mermaid 12 parser
     citations.test.js              what counts as a citation, and which sources an export lists
     export.test.js                 the real print HTML and .docx bytes, checked for cited sources only
+    theme.test.js                  theme resolution: an explicit choice beats the OS
 docs/                              the architecture record, split by module
   ARCHITECTURE.md                  index — what/why/stack, glossary, this map, quick reference
   agents.md                        §7–§8   the pipeline and every prompt

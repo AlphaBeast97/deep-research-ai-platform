@@ -57,8 +57,10 @@ Tailwind CSS v4 is wired through `@tailwindcss/vite` — no `tailwind.config.js`
 is needed. Design tokens live in `src/index.css`:
 
 - CSS custom properties (`--c-bg`, `--c-accent`, …) define the dark and light
-  palettes; the light palette is applied automatically under
-  `prefers-color-scheme: light`. Dark is the default.
+  palettes. Dark is the base `:root`; light is `:root[data-theme='light']`, and
+  `document.documentElement.dataset.theme` always holds the resolved theme. The
+  header switches between light, dark and system; the choice is remembered in
+  `localStorage` and applied before first paint, so there is no flash.
 - The identity is a warm "reading room": ink on paper, one teal accent, amber for
   annotations, with `Fraunces` (display), `Newsreader` (report prose) and
   `Public Sans` (UI) loaded from Google Fonts in `index.html`.

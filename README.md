@@ -448,7 +448,7 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
   rescue still falls back to showing its source rather than breaking the report.
 - **Citations & sources panel** — inline `[n]` markers become clickable chips that scroll to the matching source card.
 - **Export** — copy as Markdown, download `.md` (repairable diagrams preserved as code), download **Word `.docx`** (real headings, tables, and diagrams rasterised to images), or print/save as **PDF**. All three files carry a **Sources appendix** listing only the sources the report actually cites, so every entry resolves to a `[n]` in the text and vice versa.
-- **A warm, editorial UI** — Tailwind v4 with the whole palette and type scale in one token block: an ink-on-paper base, a single teal accent, amber for annotations, and `Fraunces` / `Newsreader` / `Public Sans` for display, report prose and UI. Dark stays supported (and default) via `prefers-color-scheme`. The report reads like a document rather than a dashboard, long streams fade and blur at the edge instead of snapping shut, and the landing assembles itself on scroll (`motion`).
+- **A warm, editorial UI** — Tailwind v4 with the whole palette and type scale in one token block: an ink-on-paper base, a single teal accent, amber for annotations, and `Fraunces` / `Newsreader` / `Public Sans` for display, report prose and UI. **Light, dark or system** from the header, remembered across visits and applied before first paint. The report reads like a document rather than a dashboard, long streams fade and blur at the edge instead of snapping shut, and the landing assembles itself on scroll (`motion`).
 
 ## Tech stack
 

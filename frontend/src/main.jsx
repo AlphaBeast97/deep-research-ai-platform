@@ -4,6 +4,11 @@ import { StrictMode } from 'react'
 import { createRoot } from 'react-dom/client'
 import './index.css'
 import App from './App.jsx'
+import { watchTheme } from './lib/theme.js'
+
+// Re-resolve the theme if the OS changes while the preference is `system`, or if
+// another tab changes the choice.
+watchTheme()
 
 createRoot(document.getElementById('root')).render(
   <StrictMode>

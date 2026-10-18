@@ -9,8 +9,29 @@
       name="description"
       content="MAD Researcher — multi-agent AI research that plans, searches the web, reads whole pages, and writes cited reports."
     />
-    <meta name="theme-color" content="#f7f6f2" media="(prefers-color-scheme: light)" />
-    <meta name="theme-color" content="#17150f" media="(prefers-color-scheme: dark)" />
+    <meta name="theme-color" content="#f7f6f2" />
+    <script>
+      // Resolve the theme before first paint so there is no flash. The stored
+      // preference is light / dark / system; only the resolved value reaches the
+      // DOM, which is what the CSS keys off.
+      ;(() => {
+        try {
+          const stored = localStorage.getItem('mad-theme')
+          const pref = stored === 'light' || stored === 'dark' ? stored : 'system'
+          const dark =
+            pref === 'dark' ||
+            (pref === 'system' && window.matchMedia('(prefers-color-scheme: dark)').matches)
+          const theme = dark ? 'dark' : 'light'
+          document.documentElement.dataset.theme = theme
+          document.documentElement.style.colorScheme = theme
+          document
+            .querySelector('meta[name="theme-color"]')
+            .setAttribute('content', dark ? '#17150f' : '#f7f6f2')
+        } catch {
+          /* storage blocked — fall through to the CSS default */
+        }
+      })()
+    </script>
 
     <!-- Fraunces (display) · Newsreader (report prose) · Public Sans (UI) -->
     <link rel="preconnect" href="https://fonts.googleapis.com" />

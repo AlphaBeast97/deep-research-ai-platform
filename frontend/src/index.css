@@ -4,9 +4,10 @@
    Design tokens — "Reading Room".
 
    A warm-paper, editorial identity: ink on off-white, a single
-   teal accent, amber for annotations. Dark stays supported and is
-   still the default (`:root`), light via `prefers-color-scheme`,
-   matching how this project has always themed.
+   teal accent, amber for annotations. Dark is the base (`:root`);
+   light is an explicit override. The OS only decides what "system"
+   resolves to — the attribute always holds the *resolved* theme, so
+   a deliberate choice beats the OS in both directions.
 
    Token *names* are unchanged (`bg-surface`, `text-muted`,
    `border-line`, `text-accent` …) so components restyle without
@@ -36,30 +37,28 @@
   color-scheme: dark;
 }
 
-@media (prefers-color-scheme: light) {
-  :root {
-    --c-bg: #f7f6f2;
-    --c-inset: #f2f0e9;
-    --c-surface: #ffffff;
-    --c-surface-2: #f6f4ee;
-    --c-line: #e7e2d8;
-    --c-line-soft: #f0ece4;
-    --c-fg: #4a443c;
-    --c-muted: #8a8177;
-    --c-strong: #1d1a16;
-    --c-accent: #0e7c6b;
-    --c-accent-2: #0e708c;
-    --c-highlight: #a9992a;
-    --c-ok: #157f3d;
-    --c-warn: #b45309;
-    --c-danger: #b42318;
-    --c-planner: #5b4bc4;
-    --c-researcher: #0e7c6b;
-    --c-writer: #a65a0a;
-    --c-critic: #a83a6b;
-    --c-shadow: 0 16px 36px -20px rgba(48, 40, 28, 0.22);
-    color-scheme: light;
-  }
+:root[data-theme='light'] {
+  --c-bg: #f7f6f2;
+  --c-inset: #f2f0e9;
+  --c-surface: #ffffff;
+  --c-surface-2: #f6f4ee;
+  --c-line: #e7e2d8;
+  --c-line-soft: #f0ece4;
+  --c-fg: #4a443c;
+  --c-muted: #8a8177;
+  --c-strong: #1d1a16;
+  --c-accent: #0e7c6b;
+  --c-accent-2: #0e708c;
+  --c-highlight: #a9992a;
+  --c-ok: #157f3d;
+  --c-warn: #b45309;
+  --c-danger: #b42318;
+  --c-planner: #5b4bc4;
+  --c-researcher: #0e7c6b;
+  --c-writer: #a65a0a;
+  --c-critic: #a83a6b;
+  --c-shadow: 0 16px 36px -20px rgba(48, 40, 28, 0.22);
+  color-scheme: light;
 }
 
 @theme inline {
@@ -182,10 +181,8 @@
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 8' preserveAspectRatio='none'%3E%3Cpath d='M1 5.2C28 1.4 54 6.6 82 4.2 112 1.6 140 6.4 199 4.8' fill='none' stroke='%230e7c6b' stroke-width='2' stroke-linecap='round' opacity='0.75'/%3E%3C/svg%3E");
 }
 
-@media (prefers-color-scheme: dark) {
-  .sketch-rule::after {
-    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 8' preserveAspectRatio='none'%3E%3Cpath d='M1 5.2C28 1.4 54 6.6 82 4.2 112 1.6 140 6.4 199 4.8' fill='none' stroke='%2334d3b4' stroke-width='2' stroke-linecap='round' opacity='0.75'/%3E%3C/svg%3E");
-  }
+:root[data-theme='dark'] .sketch-rule::after {
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 200 8' preserveAspectRatio='none'%3E%3Cpath d='M1 5.2C28 1.4 54 6.6 82 4.2 112 1.6 140 6.4 199 4.8' fill='none' stroke='%2334d3b4' stroke-width='2' stroke-linecap='round' opacity='0.75'/%3E%3C/svg%3E");
 }
 
 /* Primary action. The accent is a light teal in dark mode and a dark

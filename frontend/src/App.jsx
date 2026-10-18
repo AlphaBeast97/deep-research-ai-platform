@@ -8,6 +8,7 @@ import SourcesPanel from './components/SourcesPanel.jsx'
 import HistoryPanel from './components/HistoryPanel.jsx'
 import Badge from './components/ui/Badge.jsx'
 import Mark from './components/ui/Mark.jsx'
+import ThemeToggle from './components/ui/ThemeToggle.jsx'
 import { cn } from './lib/cn.js'
 import { useResearch } from './hooks/useResearch.js'
 import {
@@ -140,6 +141,7 @@ function ResearchApp() {
         <div className="flex items-center gap-2">
           <Badge tone={health?.ok ? 'ok' : 'warn'}>{health?.ok ? 'Live' : 'Offline'}</Badge>
           {health?.storage && <Badge tone="neutral">{health.storage}</Badge>}
+          <ThemeToggle />
           <UserButton />
         </div>
       </header>

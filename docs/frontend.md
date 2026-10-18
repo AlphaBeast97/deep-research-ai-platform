@@ -247,8 +247,11 @@ flowchart LR
 the `@theme` block directly, so configuration is one `@import 'tailwindcss'` plus a token map.
 - **Tokens stay in `:root` as `--c-*` custom properties**, and `@theme inline` maps them to
 `--color-*`. `inline` means the generated utility references `var(--c-accent)` rather than a
-copied literal, which is what makes the `prefers-color-scheme: light` palette work with no
-`dark:` variants anywhere in the markup.
+copied literal, so a whole palette is one attribute away and no component carries a `dark:`
+variant. Dark is the base `:root`; light is `:root[data-theme='light']`. The attribute always
+holds the **resolved** theme — `index.html` sets it before first paint from the stored
+`light` / `dark` / `system` preference — so a deliberate choice beats the OS in both directions,
+and `system` is the only mode where the OS is consulted at all.
 - **The rendered report keeps a small stylesheet.** `react-markdown` output cannot carry
 utility classes on every element, so `.markdown` rules remain — but they are written with
 `@apply`, live in one block, and are the only place that styles Markdown.
