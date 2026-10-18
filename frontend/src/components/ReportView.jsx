@@ -180,15 +180,15 @@ export default function ReportView({
       {phaseTotal > 0 && (
         <div className="mt-2.5">
           <div
-            className="flex h-1.5 overflow-hidden rounded-full bg-surface-2"
+            className="flex h-2 overflow-hidden rounded-full bg-surface-2"
             role="img"
             aria-label="Time spent in each phase"
           >
             {phases.map((entry) => (
               <span
                 key={entry.phase}
-                className={PHASE_DOT[entry.phase] ?? 'bg-muted'}
-                style={{ width: `${(Number(entry.ms) / phaseTotal) * 100}%`, minWidth: 3 }}
+                className={`${PHASE_DOT[entry.phase] ?? 'bg-muted'} border-r-2 border-surface last:border-r-0`}
+                style={{ width: `${(Number(entry.ms) / phaseTotal) * 100}%`, minWidth: 6 }}
                 title={`${PHASE_NAME[entry.phase] ?? entry.phase} · ${formatDuration(entry.ms)}`}
               />
             ))}
