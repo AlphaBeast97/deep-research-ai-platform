@@ -2,9 +2,7 @@ import OpenAI from 'openai'
 import config from './config.js'
 
 // Local servers (Ollama, LM Studio, vLLM) don't require a key, but the SDK
-// rejects an empty string — so send a placeholder when none is set. Presence of
-// credentials is validated at startup (see index.js), so there is no mock
-// fallback to worry about here.
+// rejects an empty string — so send a placeholder when none is set. 
 //
 // `timeout` / `maxRetries` are set explicitly because the SDK defaults are 10
 // minutes and 2 retries: a provider that accepts a request and then sends
