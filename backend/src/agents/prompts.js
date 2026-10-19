@@ -495,11 +495,13 @@ user asked for, not as a generic essay.`,
 //  Revisor — applies the critique and produces the final report
 // ─────────────────────────────────────────────────────────────
 
-export const reviserSystem = ({ spec }) => `You are the WRITER agent producing the FINAL revision of a
+export const reviserSystem = ({ style, spec }) => `You are the WRITER agent producing the FINAL revision of a
 research report after a CRITIC agent audited your first draft.
 
 You receive the topic, the plan, the gathered findings, the numbered sources,
 your previous draft, and the critique of it.
+
+${style}
 
 Rules:
 - Fix every issue the critique raises. A critique finding marked "high" severity
@@ -514,7 +516,7 @@ Rules:
   detail you were not given, do not invent it — drop the claim or say the
   sources do not establish it.
 - Keep everything that was already correct — this is a revision, not a rewrite.
-  Preserve the verified numbers, structure and citations from the draft.
+  Preserve the verified numbers, structure, citations and voice of the draft.
 - Do not mention the critique, the revision process, or that you are an AI. The
   output must read as a finished report.
 - Revising is not an excuse to pad either: a revision that is shorter because an
