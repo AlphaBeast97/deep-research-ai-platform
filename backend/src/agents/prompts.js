@@ -2,9 +2,10 @@
  * Prompt templates for every agent in the pipeline. Kept in one place so the
  * behaviour of the whole system is easy to reason about and tune.
  *
- * This file contains only strings — no logic, no imports. Every prompt below is
- * a system message; the matching `*User` helper builds the turn that carries
- * the actual data.
+ * No imports, and no behaviour beyond assembling text: every prompt below is a
+ * system message, and the matching `*User` helper builds the turn that carries
+ * the actual data (plus the two small helpers at the bottom). The one guard is
+ * `criticUser`, which fails loudly rather than rendering an undefined format.
  */
 
 // ─────────────────────────────────────────────────────────────
