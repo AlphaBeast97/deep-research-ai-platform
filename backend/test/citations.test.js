@@ -26,6 +26,19 @@ test('a markdown link whose text is a number is not a citation', () => {
   assert.equal(auditCitations('[1](https://a.test) is a link.', sources).references, 0)
 })
 
+// Regression: the pattern used to accept any number of digits, so a year in
+// prose was audited as an out-of-range source and then *deleted* from the
+// report by sanitizeCitations — turning "took effect in [2024]" into
+// "took effect in".
+test('a four-digit bracket in prose is a year, not a citation', () => {
+  const report = 'The policy took effect in [2024].'
+  const audit = auditCitations(report, sources)
+  assert.equal(audit.references, 0)
+  assert.deepEqual(audit.invalid, [])
+  assert.deepEqual([...citedIndexes(report)], [])
+  assert.equal(sanitizeCitations(report, new Set([1, 2, 3])), report)
+})
+
 test('citedIndexes reports every number the report uses', () => {
   assert.deepEqual([...citedIndexes('a [2] b [1, 3] c [3]')].sort(), [1, 2, 3])
 })

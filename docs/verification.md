@@ -200,8 +200,11 @@ well, so it was pre-existing rather than a regression from the split.
 **What this does not establish.** Nothing here speaks to a real provider: whether 180 s of
 silence is enough for a given reasoning model is a property of that model and its endpoint, not
 of this code — the harness shows only that a long first token is no longer charged to the
-inter-token budget. The harness was a throwaway script rather than a committed test, so this
-section records a measurement, not a regression guard; row 10 stands in that respect.
+inter-token budget. The timing harness was a throwaway script rather than a committed test, so
+this section records a measurement, not a regression guard; row 10 stands in that respect. What
+*is* committed is an SSE harness in `backend/test/llm.test.js` covering the transport's
+behaviour — usage reported once from the last frame, `finish_reason: "length"` rejected, and the
+`stream_options` fallback — but it asserts outcomes, not timing.
 
 ---
 

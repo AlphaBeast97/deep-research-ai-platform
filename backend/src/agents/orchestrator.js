@@ -357,6 +357,9 @@ async function pipeline(options, progress) {
       progress.draft = draftText
       emit({ type: 'token', text })
     },
+    // The draft is one of the two largest prompts in the run; without this its
+    // cost never reaches `usage`.
+    onUsage: addUsage,
     signal,
   })
   draftText = draft
@@ -476,6 +479,7 @@ async function pipeline(options, progress) {
           critique: { ...critique, issues: applicable },
           reportType: type.id,
           onToken: (text) => emit({ type: 'token', text }),
+          onUsage: addUsage,
           signal,
         })
 

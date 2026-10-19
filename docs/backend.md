@@ -382,6 +382,24 @@ therefore re-asserted *after* the loop as well as in the `catch`, because otherw
 text already received would be returned as a finished answer and persisted as a complete report.
 That is a silent data-integrity failure, not a timeout.
 
+**A streamed call reports its own usage.** `chatStream` sends
+`stream_options: { include_usage: true }` and reads the provider's usage frame, so the draft and
+the revision — the two largest prompts in a run — reach `addUsage` instead of being invisible in
+the stored `usage`. The frame is kept as the **last** non-null value and passed to `onUsage` once,
+after the loop: some providers repeat a running total on later frames, so summing frames would
+over-count. Not every OpenAI-compatible server implements the parameter, so a `400` is retried
+once without it — cost accounting must never be able to break a report — and a provider that
+never sends a usage frame leaves the call's cost *unknown*, not zero.
+
+**An answer cut off at the output ceiling is a failure.** `finish_reason: "length"` means the
+provider stopped the model, not that the report was finished. A cut mid-section keeps its
+headings, its citations and most of its figures, so `revisionRejection` and the citation audit
+would both pass it and it would be persisted as complete. `chatStream` therefore throws, and the
+existing failure paths take over: a truncated draft fails the run (persisted as `failed` with the
+text reached so far), while a truncated revision keeps the draft and records `revised: false`.
+An *empty* answer from a reasoning model is still reported as the empty-response error, because
+the problem there is model selection, not a limit that can be raised.
+
 ### 10.5 JSON mode: defended with a fallback
 
 ```js

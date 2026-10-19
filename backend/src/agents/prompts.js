@@ -146,6 +146,8 @@ could. Given the sub-question, what was found, and what is still missing, decide
 whether more searching would realistically help — and if so, exactly what to
 search for.
 
+${UNTRUSTED_DATA}
+
 Rules:
 - Propose at most the stated number of queries.
 - Each query must be genuinely different from the ones already tried. Never
@@ -570,7 +572,7 @@ ${spec}
 
 ${SHARED_RULES}`
 
-export const reviserUser = (query, plan, research, sources, draft, critique) => {
+export const reviserUser = (query, plan, research, sources, draft, critique, today) => {
   const issues = (critique.issues || [])
     .map(
       (i) =>
@@ -586,6 +588,7 @@ export const reviserUser = (query, plan, research, sources, draft, critique) => 
 
   return [
     `Research topic: "${query}"`,
+    ...(today ? [`Today's date: ${today}`] : []),
     '',
     'Plan:',
     plan.subQuestions.map((q, i) => `${i + 1}. ${q.question}`).join('\n'),

@@ -89,6 +89,15 @@ const stalledMessage = (model) =>
   'try another LLM_MODEL_SMART, or raise LLM_STREAM_IDLE_TIMEOUT_MS.'
 
 /**
+ * The provider cut the answer off at its output ceiling (`finish_reason:
+ * "length"`). Named separately from a stall: the fix is a higher token limit or
+ * a shorter report, not a different model or endpoint.
+ */
+const truncatedMessage = (model) =>
+  `The model "${model || config.llm.smartModel}" hit its output limit and the answer was cut off. ` +
+  `Raise the provider's max output tokens for this model, or ask for a shorter report.`
+
+/**
  * Turn an SDK failure into something a user can act on. Aborts caused by the
  * caller are re-raised as `AbortedError` so the pipeline can tell "the user
  * stopped this" apart from "this broke".
@@ -239,8 +248,21 @@ export async function chatJSON({ system, user, model, temperature = 0.2, signal 
  *
  * Retries cannot rescue any of this: a stream that dies after the headers is
  * already past the SDK's retry loop.
+ *
+ * `onUsage` receives the provider's token accounting once, after the stream
+ * ends. The frame is optional — a provider may not send it, and one that
+ * rejects `stream_options` is retried without it — so a missing frame means the
+ * cost of this call is unknown, never zero.
  */
-export async function chatStream({ system, user, model, temperature = 0.4, onToken, signal }) {
+export async function chatStream({
+  system,
+  user,
+  model,
+  temperature = 0.4,
+  onToken,
+  onUsage,
+  signal,
+}) {
   const idle = new AbortController()
   const idleMs = config.llm.streamIdleTimeoutMs
   const firstTokenMs = config.llm.timeoutMs
@@ -248,6 +270,8 @@ export async function chatStream({ system, user, model, temperature = 0.4, onTok
   let writing = false
   let timer = null
   let stalled = false
+  let usage = null
+  let finishReason = null
 
   const armWatchdog = () => {
     clearTimeout(timer)
@@ -262,22 +286,42 @@ export async function chatStream({ system, user, model, temperature = 0.4, onTok
   try {
     throwIfAborted(signal)
 
-    const stream = await client.chat.completions.create(
-      {
-        model: model || config.llm.smartModel,
-        temperature,
-        stream: true,
-        messages: [
-          { role: 'system', content: system },
-          { role: 'user', content: user },
-        ],
-      },
-      {
-        signal: combineSignals(signal, idle.signal),
-        timeout: config.llm.timeoutMs,
-        maxRetries: config.llm.maxRetries,
-      },
-    )
+    const request = (withUsageFrame) =>
+      client.chat.completions.create(
+        {
+          model: model || config.llm.smartModel,
+          temperature,
+          stream: true,
+          // Ask for the final frame that carries token usage. Not every
+          // OpenAI-compatible server implements it, so a 400 is retried without
+          // it below: the report must not depend on a bookkeeping field.
+          ...(withUsageFrame ? { stream_options: { include_usage: true } } : {}),
+          messages: [
+            { role: 'system', content: system },
+            { role: 'user', content: user },
+          ],
+        },
+        {
+          signal: combineSignals(signal, idle.signal),
+          timeout: config.llm.timeoutMs,
+          maxRetries: config.llm.maxRetries,
+        },
+      )
+
+    let stream
+    try {
+      stream = await request(true)
+    } catch (err) {
+      // A 400 is how OpenAI-compatible servers reject an unknown parameter.
+      // One retry without the usage frame separates "this server does not know
+      // stream_options" from a genuinely bad request, which fails again here
+      // and is reported as the caller's error. No tokens are spent on a 400.
+      if (signal?.aborted || err?.status !== 400) throw err
+      console.warn(
+        `[llm] ${model || config.llm.smartModel} rejected stream_options; retrying without token accounting.`,
+      )
+      stream = await request(false)
+    }
 
     // Headers are in. Whatever waits from here — the first token, or a silence
     // in the middle of the report — the SDK is no longer watching for it.
@@ -285,6 +329,12 @@ export async function chatStream({ system, user, model, temperature = 0.4, onTok
 
     let text = ''
     for await (const chunk of stream) {
+      // Usage arrives on a final frame whose `choices` is empty. Some providers
+      // repeat a running total on every frame, so keep the last value and emit
+      // it once after the loop rather than summing frames that may overlap.
+      if (chunk.usage) usage = chunk.usage
+      if (chunk.choices?.[0]?.finish_reason) finishReason = chunk.choices[0].finish_reason
+
       const delta = chunk.choices?.[0]?.delta
       // `reasoning_content` / `reasoning` are what several OpenAI-compatible
       // providers expose a thinking model's output as. Either counts as the
@@ -301,6 +351,11 @@ export async function chatStream({ system, user, model, temperature = 0.4, onTok
       }
     }
 
+    // The tokens were spent whether or not the answer below is usable, so the
+    // cost is reported before any of the failure checks — a cut-off draft still
+    // consumed the whole prompt and whatever it wrote.
+    if (onUsage && usage) onUsage(usage)
+
     // Aborting the response does **not** reliably surface as an error: the body
     // is closed and the SDK's iterator simply completes. Without this, a stall
     // that killed the tail of an answer would fall through and be returned as a
@@ -310,7 +365,16 @@ export async function chatStream({ system, user, model, temperature = 0.4, onTok
     // which names the wrong problem).
     if (stalled) throw stallError()
 
+    // An answer cut off at the provider's ceiling is not a finished report, and
+    // nothing downstream can tell the difference: a mid-section cut keeps its
+    // headings, its citations and most of its figures, so every structural
+    // guard passes. A reasoning model that spent its whole budget thinking is
+    // still reported as empty — that is a model-selection problem, not a limit
+    // that can be raised.
     if (!text.trim()) throw new Error(emptyMessage(model || config.llm.smartModel))
+
+    if (finishReason === 'length') throw new Error(truncatedMessage(model))
+
     return text
   } catch (err) {
     if (stalled) throw stallError()

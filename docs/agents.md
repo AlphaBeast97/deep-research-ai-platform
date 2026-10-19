@@ -499,6 +499,10 @@ Used only by the gap-filling loop. Its whole job is to convert a *known deficien
   invent filler to look useful, and the loop would run to its bound on noise.
 - **The step is counted in token usage** and reported as a `usage` delta, so the cost of
   iterating is attributable rather than invisible.
+- **It carries the untrusted-data rule.** The prompt reads finding points and gaps, which are
+  extracted from web text; like every other prompt that touches that material, it is told not
+  to follow instructions found inside it. The agent only emits search queries, so the blast
+  radius is small — but the rule is structural, not a judgement about this one step.
 
 ### 8.5 The critic prompt
 
@@ -549,6 +553,9 @@ audit thorough without demanding that it produce findings:
   improvement, and no sentence may be added to preserve the range. A section that is thin
   *because gathered findings were omitted* is expanded from those findings — the test is
   missing substance, never a word count.
+- **It is given today's date, exactly as the writer is.** `SHARED_RULES` refers to the date for
+  judging recency, and the revisor is the pass most able to change a date; omitting the value
+  there left the rule dangling. Both calls now pass the same UTC day.
 
 The `writer.js` module owns both streamed calls (`writeDraft`, `reviseReport`); they resolve
 the run's report format, share the `findingsBlock` helper and the format spec, so a revision

@@ -1,12 +1,57 @@
 import assert from 'node:assert/strict'
-import test from 'node:test'
-import {
-  AbortedError,
-  combineSignals,
-  explainError,
-  isAbortError,
-  throwIfAborted,
-} from '../src/llm.js'
+import test, { after } from 'node:test'
+import { createServer } from 'node:http'
+
+/**
+ * The streamed-call tests below need `chatStream` to talk to *this* process, so
+ * the base URL must be set before `config.js` is first imported — hence the
+ * dynamic import. A static one would be hoisted above the assignment and the
+ * SDK would call the real provider.
+ */
+
+/** Frames the next request is answered with. */
+let frames = []
+/** Bodies the server received, so a retry can be told from a first attempt. */
+let requests = []
+/** Answer 400 to any request that asks for stream_options. */
+let rejectStreamOptions = false
+
+const server = createServer((req, res) => {
+  let body = ''
+  req.on('data', (chunk) => (body += chunk))
+  req.on('end', () => {
+    const parsed = JSON.parse(body || '{}')
+    requests.push(parsed)
+
+    if (rejectStreamOptions && parsed.stream_options) {
+      res.writeHead(400, { 'Content-Type': 'application/json' })
+      res.end(
+        JSON.stringify({
+          error: { message: 'Unsupported parameter: stream_options', type: 'invalid_request_error' },
+        }),
+      )
+      return
+    }
+
+    res.writeHead(200, { 'Content-Type': 'text/event-stream' })
+    for (const frame of frames) res.write(`data: ${JSON.stringify(frame)}\n\n`)
+    res.write('data: [DONE]\n\n')
+    res.end()
+  })
+})
+
+await new Promise((resolve) => server.listen(0, '127.0.0.1', resolve))
+const { port } = server.address()
+process.env.LLM_API_KEY = 'test-key'
+process.env.LLM_BASE_URL = `http://127.0.0.1:${port}/v1`
+
+const { AbortedError, chatStream, combineSignals, explainError, isAbortError, throwIfAborted } =
+  await import('../src/llm.js')
+
+after(() => {
+  server.closeAllConnections?.()
+  server.close()
+})
 
 test('no signals means no signal', () => {
   assert.equal(combineSignals(undefined, null), undefined)
@@ -79,4 +124,63 @@ test('only AbortError-shaped failures count as a stop', () => {
   assert.equal(isAbortError(Object.assign(new Error('nope'), { name: 'AbortError' })), true)
   assert.equal(isAbortError(new Error('boom')), false)
   assert.equal(isAbortError(undefined), false)
+})
+
+// ── the streamed call, against a local SSE server ────────────────────────
+
+test('a streamed answer reports its usage once, from the last frame', async () => {
+  requests = []
+  frames = [
+    { choices: [{ delta: { content: 'Hello' } }] },
+    // Providers send usage on a frame with no choices...
+    { choices: [], usage: { prompt_tokens: 10, completion_tokens: 5, total_tokens: 15 } },
+    // ...and some repeat a running total on later frames, so the frames must
+    // not be summed — only the last one is the call's usage.
+    { choices: [], usage: { prompt_tokens: 10, completion_tokens: 6, total_tokens: 16 } },
+  ]
+
+  const seen = []
+  const text = await chatStream({
+    system: 'test',
+    user: 'test',
+    model: 'test-model',
+    onUsage: (u) => seen.push(u),
+  })
+
+  assert.equal(text, 'Hello')
+  assert.equal(seen.length, 1)
+  assert.equal(seen[0].total_tokens, 16)
+  assert.equal(requests[0].stream_options.include_usage, true)
+})
+
+test('an answer cut off at the output limit fails instead of looking finished', async () => {
+  requests = []
+  frames = [
+    { choices: [{ delta: { content: '## Findings\n\nThe partial section' } }] },
+    { choices: [{ delta: {}, finish_reason: 'length' }] },
+  ]
+
+  // The text has a heading and would pass every downstream structural check,
+  // which is exactly why the transport has to reject it.
+  await assert.rejects(
+    () => chatStream({ system: 'test', user: 'test', model: 'test-model' }),
+    /hit its output limit/,
+  )
+})
+
+test('a provider that rejects stream_options is retried without it', async () => {
+  requests = []
+  rejectStreamOptions = true
+  frames = [{ choices: [{ delta: { content: 'ok' } }] }]
+
+  try {
+    const text = await chatStream({ system: 'test', user: 'test', model: 'test-model' })
+    assert.equal(text, 'ok')
+  } finally {
+    rejectStreamOptions = false
+  }
+
+  assert.equal(requests.length, 2)
+  assert.equal('stream_options' in requests[0], true)
+  assert.equal('stream_options' in requests[1], false)
 })

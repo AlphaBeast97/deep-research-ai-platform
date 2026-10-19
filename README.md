@@ -378,6 +378,17 @@ request and then says nothing is indistinguishable from a slow one:
   spend their entire budget thinking and return zero content tokens
   (`finish_reason: "length"`); that is reported by name, with the model, instead
   of being parsed as `{}` and quietly producing an empty plan or report.
+- **A report cut off at the output limit is not a report.** A streamed answer
+  that ends on `finish_reason: "length"` now raises instead of returning: a cut
+  mid-section keeps its headings, citations and most figures, so every
+  downstream structural check would pass it and it would be saved as complete. A
+  truncated draft fails the run (saved as `failed` with the text so far); a
+  truncated revision keeps the draft.
+- **The two streamed calls are counted in `usage`.** The draft and the revision
+  now request the provider's usage frame, so a stored run's token counts are not
+  just the planner, researcher, follow-up and critic calls. A provider that
+  rejects the parameter is retried without it — the report never depends on
+  bookkeeping.
 - **`RUN_TIMEOUT_MS`** is the backstop: it stops the run and tells the client
   why, so no combination of slow provider and slow search can hold an SSE
   connection open indefinitely.

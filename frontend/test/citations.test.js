@@ -31,6 +31,13 @@ test('citedIndexes ignores markdown links and prose brackets', () => {
   assert.deepEqual([...citedIndexes('Digits [1, 2, 3, 4, 5, 6, 7] are not a citation.')], [])
 })
 
+test('a year in brackets is prose, not a citation', () => {
+  // Regression: `\d+` matched `[2024]`, so the renderer produced a chip
+  // pointing at a source that does not exist and the export tried to list it.
+  assert.deepEqual([...citedIndexes('The policy took effect in [2024].')], [])
+  assert.deepEqual(citedSources(SOURCES, 'The policy took effect in [2024].'), [])
+})
+
 test('citedIndexes tolerates an empty report', () => {
   assert.deepEqual([...citedIndexes('')], [])
   assert.deepEqual([...citedIndexes(undefined)], [])

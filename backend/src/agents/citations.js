@@ -9,8 +9,14 @@
  *
  * The negative lookahead keeps real Markdown links (`[text](url)`) untouched,
  * and mirrors the rule the frontend uses to turn citations into chips.
+ *
+ * Numbers are capped at three digits on purpose. A run numbers a few dozen
+ * sources, so a four-digit bracket is prose — usually a year — and treating it
+ * as a citation both inflated the reference count and, worse, let
+ * `sanitizeCitations` delete `[2024]` from the report. The frontend keeps the
+ * same pattern (it chips what this audits), so the two copies move together.
  */
-const CITATION_RE = /\[(\d+(?:\s*,\s*\d+)*)\](?!\()/g
+export const CITATION_RE = /\[(\d{1,3}(?:\s*,\s*\d{1,3})*)\](?!\()/g
 
 // ``` … ``` and ~~~ … ~~~ fences. Capturing, so `String.split` keeps them.
 const FENCED_BLOCK_RE = /(```[\s\S]*?```|~~~[\s\S]*?~~~)/g

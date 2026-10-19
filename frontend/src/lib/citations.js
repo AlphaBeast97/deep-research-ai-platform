@@ -8,9 +8,17 @@
  * it lives here.
  */
 
-/** `[2]`, `[1, 4]` — but not `[3](url)`, which is a Markdown link. */
+/**
+ * `[2]`, `[1, 4]` — but not `[3](url)`, which is a Markdown link.
+ *
+ * Numbers are capped at three digits for the same reason the backend caps them:
+ * a run numbers a few dozen sources, so `[2024]` in prose is a year, not a
+ * reference. Without the cap the renderer turned it into a chip pointing at
+ * source 2024, and the exporters tried to list that source. The backend rule in
+ * `agents/citations.js` mirrors this one — the two must stay identical.
+ */
 export function citationRegExp() {
-  return /\[(\d+(?:\s*,\s*\d+)*)\](?!\()/g
+  return /\[(\d{1,3}(?:\s*,\s*\d{1,3})*)\](?!\()/g
 }
 
 /** More than this many numbers in one bracket is prose, not a citation. */

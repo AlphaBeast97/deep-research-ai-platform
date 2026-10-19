@@ -1,6 +1,6 @@
 import { chatStream } from '../llm.js'
 import config from '../config.js'
-import { citedIndexes } from './citations.js'
+import { CITATION_RE, citedIndexes } from './citations.js'
 import { reviserSystem, reviserUser, writerSystem, writerUser } from './prompts.js'
 import { resolveReportType } from './reportTypes.js'
 
@@ -11,30 +11,47 @@ import { resolveReportType } from './reportTypes.js'
  * The report type chosen by the user selects the structure and the writing
  * stance; everything else about the prompt is shared.
  */
-export async function writeDraft({ query, plan, research, sources, rounds, reportType, onToken, signal }) {
+export async function writeDraft({
+  query,
+  plan,
+  research,
+  sources,
+  rounds,
+  reportType,
+  onToken,
+  onUsage,
+  signal,
+}) {
   const type = resolveReportType(reportType)
   return chatStream({
     system: writerSystem(type),
     // The date is for judging recency only; the shared rules forbid dating a
     // claim the sources leave undated.
-    user: writerUser(query, plan, research, sources, rounds, new Date().toISOString().slice(0, 10)),
+    user: writerUser(query, plan, research, sources, rounds, today()),
     model: config.llm.smartModel,
     temperature: 0.5,
     onToken,
+    onUsage,
     signal,
   })
 }
 
+/** UTC, so the prompt does not depend on the server's locale or timezone. */
+const today = () => new Date().toISOString().slice(0, 10)
+
 /** A figure: a number, with an optional unit or magnitude word. */
 const FIGURE_RE = /\b\d[\d,]*(?:\.\d+)?(?:\s?(?:%|percent|bn|billion|million|trillion|thousand))?/gi
 
-/** Citation markers are numbers too, but they are references, not facts. */
-const CITATION_MARKER_RE = /\[(\d+(?:\s*,\s*\d+)*)\](?!\()/g
-
+/**
+ * Citation markers are numbers too, but they are references, not facts — so
+ * they are removed before the figures are compared. The pattern is imported
+ * rather than copied: a marker this pass fails to strip would count as a
+ * "figure", and a stale copy here would quietly drift from the audit's rule.
+ */
 const figuresIn = (text) =>
   new Set(
     (String(text || '')
-      .replace(CITATION_MARKER_RE, ' ')
+      .replace(CITATION_RE, ' ')
       .match(FIGURE_RE) || []).map((n) => n.replace(/\s+/g, '').toLowerCase()),
   )
 
@@ -99,15 +116,20 @@ export async function reviseReport({
   critique,
   reportType,
   onToken,
+  onUsage,
   signal,
 }) {
   const type = resolveReportType(reportType)
   return chatStream({
     system: reviserSystem(type),
-    user: reviserUser(query, plan, research, sources, draft, critique),
+    // The reviser shares the writer's rules, one of which refers to today's
+    // date for recency. Omitting it here left that rule dangling on the pass
+    // most able to change a date.
+    user: reviserUser(query, plan, research, sources, draft, critique, today()),
     model: config.llm.smartModel,
     temperature: 0.35,
     onToken,
+    onUsage,
     signal,
   })
 }
