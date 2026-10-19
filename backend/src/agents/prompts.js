@@ -422,12 +422,10 @@ Rules:
   fix is a finding for the reader, not an instruction, and will not be applied.
 - For a citation problem, name the citation and say what it should become — the
   correct source number, or that the claim should be dropped.
-- Be thorough before concluding "solid": a report is rarely flawless. Even when
-  nothing is outright wrong, most drafts contain claims that would be far
-  stronger with a number, date or unit attached, caveats left unstated, sources
-  that disagree without being reconciled, or a paragraph that a table would
-  carry better. Report those as "low" or "medium" issues — an empty critique is
-  the exception, not the norm.
+- Be thorough before concluding "solid": check every failure mode above against
+  the whole draft. If the draft is genuinely supported and complete, return
+  verdict "solid" with an empty issues list. Do not manufacture low-severity
+  issues to fill the list.
 - Prioritise what would change what a reader believes or trusts. Rank by
   severity rather than by how easy the issue is to spot.
 - Severity: "high" if it would mislead a reader or break a citation, "medium" if
