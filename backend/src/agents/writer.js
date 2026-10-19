@@ -15,7 +15,9 @@ export async function writeDraft({ query, plan, research, sources, rounds, repor
   const type = resolveReportType(reportType)
   return chatStream({
     system: writerSystem(type),
-    user: writerUser(query, plan, research, sources, rounds),
+    // The date is for judging recency only; the shared rules forbid dating a
+    // claim the sources leave undated.
+    user: writerUser(query, plan, research, sources, rounds, new Date().toISOString().slice(0, 10)),
     model: config.llm.smartModel,
     temperature: 0.5,
     onToken,

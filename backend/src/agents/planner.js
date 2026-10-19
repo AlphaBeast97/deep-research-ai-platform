@@ -12,7 +12,10 @@ export async function plan(query, { signal } = {}) {
   const max = config.research.maxSubQuestions
   const { data, usage } = await chatJSON({
     system: PLANNER_SYSTEM,
-    user: plannerUser(query, max),
+    // The date lets the planner scope "current state" and "outlook" questions
+    // to now instead of to the model's training cutoff. UTC, so the plan does
+    // not depend on the server's locale.
+    user: plannerUser(query, max, new Date().toISOString().slice(0, 10)),
     model: config.llm.smartModel,
     temperature: 0.3,
     signal,

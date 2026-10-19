@@ -58,8 +58,15 @@ Respond with JSON:
   ]
 }`
 
-export const plannerUser = (query, max) =>
-  `Research topic: "${query}"\nMaximum sub-questions: ${max}\nProduce the plan as JSON.`
+export const plannerUser = (query, max, today) =>
+  [
+    `Research topic: "${query}"`,
+    today ? `Today's date: ${today}` : '',
+    `Maximum sub-questions: ${max}`,
+    'Produce the plan as JSON.',
+  ]
+    .filter(Boolean)
+    .join('\n')
 
 // ─────────────────────────────────────────────────────────────
 //  Researcher
@@ -317,6 +324,9 @@ const SHARED_RULES = `Correctness comes before length:
 - Every number, date, name and unit must come from the provided findings or
   sources. Where the two disagree, prefer the source; where neither settles it,
   write "not established" instead of the more plausible figure.
+- Today's date is given for recency only. Use it to judge how current a finding
+  is; never attach it to a claim, and never date an event the sources leave
+  undated.
 
 Depth:
 - Length comes from depth, never from volume. For each finding give the
@@ -379,13 +389,14 @@ ${spec}
 
 ${SHARED_RULES}`
 
-export const writerUser = (query, plan, research, sources, rounds) => {
+export const writerUser = (query, plan, research, sources, rounds, today) => {
   const sourceList = sources
     .map((s) => `[${s.index}] ${s.title} — ${s.url}`)
     .join('\n')
 
   return [
     `Research topic: "${query}"`,
+    today ? `Today's date: ${today}` : '',
     plan.scope ? `Declared scope: ${plan.scope}` : '',
     '',
     'Plan:',
