@@ -187,6 +187,9 @@ export const ANALYST_SPEC = `Structure (GitHub-flavoured Markdown):
    evidence is and why (primary vs secondary, corroborated vs single-source,
    recent vs dated). Use the per-finding confidence the researchers recorded.
 8. "## Limitations & open questions" — what this research could not establish.
+9. Include one Mermaid diagram — a "flowchart TD" or a "sequenceDiagram" —
+   where it shows a process, causal chain or hierarchy that the prose would take
+   longer to explain. One diagram only.
 
 Length: no quota. Cover the gathered findings and then stop — that usually lands
 between 1,500 and 3,000 words, and the upper number is a ceiling rather than a
@@ -203,6 +206,7 @@ export const BRIEF_SPEC = `Structure (GitHub-flavoured Markdown):
 4. "## What to watch" — 2-4 bullets naming the signals that would change the picture.
 5. At most one small table, and only if it carries the comparison better than prose.
 6. "## Limitations" — 2-3 bullets on what this brief could not establish.
+No diagram: a one-pager carries its argument in bullets and one small table.
 Length: no quota — usually 400–600 words. A one-pager, not a single paragraph,
 and never padded to reach the higher number. There is no methodology section.`
 
@@ -219,6 +223,7 @@ export const COMPARISON_SPEC = `Structure (GitHub-flavoured Markdown):
 6. "## Verdict" — which option leads on which dimension and on what basis. Do not
    declare an overall winner the sources do not support; say so if they do not.
 7. "## Confidence & limitations" — how strong the comparison is and what is missing.
+No diagram: the comparison table is this format's visual.
 
 Length: no quota. Explaining how the options differ usually lands between 1,500
 and 2,600 words; the upper bound is a ceiling, not a target. The table summarises
@@ -233,7 +238,7 @@ export const TIMELINE_SPEC = `Structure (GitHub-flavoured Markdown):
    write "undated" rather than inferring one.
 4. One or two "##" sections on the drivers behind the sequence — why it unfolded
    in this order rather than another.
-5. A single Mermaid "timeline" diagram of the key milestones.
+5. Exactly one Mermaid "timeline" diagram of the key milestones.
 6. "## Where the evidence conflicts" — dates or attributions the sources dispute.
 7. "## What's next" — the indicated trajectory, with the uncertainty stated.
 8. "## Confidence & limitations"
@@ -255,6 +260,8 @@ export const RISK_SPEC = `Structure (GitHub-flavoured Markdown):
 5. "## Unknowns & blind spots" — risks the sources could not quantify or refused
    to discuss, and what that silence might mean.
 6. "## Confidence & limitations"
+7. Include one Mermaid "flowchart TD" showing how the most material risk
+   propagates from cause to harm. One diagram only.
 
 Length: no quota — usually 1,400–2,400 words, with the upper bound as a ceiling.
 The register is the index to the report, not the report: each material risk gets
@@ -272,6 +279,7 @@ export const EVIDENCE_SPEC = `Structure (GitHub-flavoured Markdown):
 7. A table of the key sources with their position and the strength of their
    evidence (primary vs secondary, corroborated vs single-source, date).
 8. "## Confidence & limitations"
+No diagram: the source table is this format's visual.
 
 Length: no quota. Spend it on the evidence itself, usually 1,500–2,600 words
 with the upper bound as a ceiling: which claims hold, on what basis, and what
@@ -317,18 +325,24 @@ Citation rules (critical):
 - Do not add a reference list at the end — the UI renders sources separately.
 
 Diagram rules (Mermaid):
-- Include one or two diagrams as fenced \`\`\`mermaid code blocks wherever a
-  process, comparison, cause-and-effect chain, timeline, or hierarchy is easier
-  to grasp visually than in prose. Place each diagram directly after the
-  paragraph that introduces it.
-- The diagram must be valid Mermaid that renders without errors. Prefer
-  "flowchart TD", "timeline", or "sequenceDiagram".
+- Include a diagram only when the structure above asks for one, and exactly the
+  number it asks for. Never add a diagram to a format that does not ask for it.
+  Place it directly after the paragraph that introduces it, in its own fenced
+  \`\`\`mermaid code block.
+- The diagram must be valid Mermaid that renders without errors. Use the diagram
+  type the structure names; where it leaves the choice open, prefer
+  "flowchart TD" or "sequenceDiagram".
 - Arrows are ASCII. Write --> between nodes. Never use -> , —> , –> , ⟶ or any
   other Unicode arrow: Mermaid rejects them outright with a syntax error and the
   whole diagram fails to render.
 - Parentheses are syntax, not text, in Mermaid. A label containing ( or ) must
   be in double quotes: B["Valuation drops (2020-2022)"]. The same goes for a
-  subgraph title. Other punctuation (%, :, ,, &) is accepted unquoted.
+  subgraph title. Percent, comma and ampersand are accepted unquoted.
+- In a "timeline" diagram, ':' is syntax: it separates the period from the
+  event, so a colon inside event text splits it into an extra event. Write
+  "2024 : Event name" and keep ':' and ';' out of the event text.
+- Never use the bare word end as a flowchart node id — it closes a subgraph.
+  Name the node DONE or END_STATE instead.
 - Keep it simple and legible: short node labels, no HTML, and never put a
   sentence of prose inside the fence — only diagram statements.
 - Never nest one diagram inside another fence and never invent a Mermaid diagram
@@ -365,7 +379,7 @@ export const writerUser = (query, plan, research, sources, rounds) => {
     sourceList || '(none)',
     rounds ? `\nSearch rounds run: ${rounds}.` : '',
     '',
-    'Write the final Markdown report now, including at least one Mermaid diagram.',
+    'Write the final Markdown report now.',
   ]
     .filter(Boolean)
     .join('\n')
