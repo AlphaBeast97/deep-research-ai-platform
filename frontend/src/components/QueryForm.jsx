@@ -55,15 +55,28 @@ export default function QueryForm({
           disabled={running}
           maxLength={500}
         />
-        {running ? (
-          <Button type="button" variant="danger" size="lg" onClick={onStop}>
-            Stop
-          </Button>
-        ) : (
-          <Button type="submit" variant="primary" size="lg" disabled={!value.trim()}>
-            Research
-          </Button>
-        )}
+        {/*
+          One button for both actions, deliberately. Rendering Stop and Research
+          as two branches reused the same DOM node and flipped its `type` from
+          "button" to "submit" while the click was still being dispatched, so
+          the browser then submitted the form — aborting the run and starting a
+          new one with the same query in a single click. A constant type, plus
+          `preventDefault` while a run is in flight, makes the click do exactly
+          one thing.
+        */}
+        <Button
+          type="submit"
+          variant={running ? 'danger' : 'primary'}
+          size="lg"
+          disabled={!running && !value.trim()}
+          onClick={(event) => {
+            if (!running) return
+            event.preventDefault()
+            onStop()
+          }}
+        >
+          {running ? 'Stop' : 'Research'}
+        </Button>
       </div>
 
       {/* ── Output format ────────────────────────────────────── */}

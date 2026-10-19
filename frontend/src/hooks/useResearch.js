@@ -35,14 +35,19 @@ export function useResearch() {
 
   const reset = useCallback(() => setState(initialState), [])
 
+  /**
+   * Stop the run by aborting the request; `run`'s AbortError branch settles the
+   * state and sets `stopped`.
+   *
+   * Deliberately not setting `status: 'done'` here. That flipped the control to
+   * its "Research" state before the browser finished activating the click, and
+   * the form then submitted with the old query — one press of Stop aborted the
+   * run and immediately started a replacement. Waiting for the abort to settle
+   * also means a second click still lands on Stop (a no-op) instead of starting
+   * a run.
+   */
   const stop = useCallback(() => {
     abortRef.current?.abort()
-    abortRef.current = null
-    setState((s) =>
-      s.status === 'running'
-        ? { ...s, status: 'done', phase: null, statusMessage: '', stopped: true }
-        : s,
-    )
   }, [])
 
   const loadRecord = useCallback((record) => {
