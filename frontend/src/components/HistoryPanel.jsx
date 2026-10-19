@@ -18,7 +18,11 @@ export default function HistoryPanel({ reports, onOpen, onDelete, activeId }) {
             <li
               key={r.id}
               className={cn(
-                'enter flex items-center overflow-hidden rounded-control border bg-inset transition duration-200 hover:-translate-y-0.5',
+                // `shrink-0` is load-bearing: the list is a flex column with a
+                // max height, and a flex item with non-visible overflow has an
+                // automatic minimum size of zero — without it, rows compress to
+                // fit the panel instead of overflowing into a scrollbar.
+                'enter flex shrink-0 items-center overflow-hidden rounded-control border bg-inset transition duration-200 hover:-translate-y-0.5',
                 r.id === activeId ? 'border-accent' : 'border-line-soft hover:border-accent/50',
               )}
             >
