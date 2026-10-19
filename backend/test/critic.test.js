@@ -1,6 +1,8 @@
 import assert from 'node:assert/strict'
 import test from 'node:test'
 import { actionableIssues, hasMaterialIssues, normalise } from '../src/agents/critic.js'
+import { criticUser } from '../src/agents/prompts.js'
+import { resolveReportType } from '../src/agents/reportTypes.js'
 
 test('a high-severity issue outranks a lenient self-assessment', () => {
   const critique = normalise({
@@ -59,6 +61,17 @@ test('a citation problem counts as material even with no high-severity issue', (
   const critique = normalise({ citationProblems: [{ citation: '[3]', problem: 'Does not say this' }] })
   assert.equal(critique.verdict, 'minor-issues')
   assert.equal(hasMaterialIssues(critique), true)
+})
+
+test('criticUser refuses to render without a resolved report type', () => {
+  assert.throws(() => criticUser('topic', [], [], 'draft'), /resolved report type/)
+  assert.throws(() => criticUser('topic', [], [], 'draft', {}), /resolved report type/)
+})
+
+test('criticUser renders the requested format and its structure', () => {
+  const prompt = criticUser('topic', [], [], '# Draft', { type: resolveReportType('brief') })
+  assert.match(prompt, /Executive brief/)
+  assert.match(prompt, /## Bottom line/)
 })
 
 test('a critique with nothing wrong is not material', () => {

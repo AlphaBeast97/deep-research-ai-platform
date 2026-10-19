@@ -475,6 +475,11 @@ Respond with JSON:
 }`
 
 export const criticUser = (query, research, sources, draft, { type, expand = [] } = {}) => {
+  // Every branch below reads the resolved type. Without this guard a caller
+  // that forgot it failed deep inside the template with an opaque
+  // "cannot read properties of undefined" instead of naming the mistake.
+  if (!type?.spec) throw new Error('criticUser requires a resolved report type')
+
   const full = new Set(expand)
   const sourceList = sources
     .map((s) => {
