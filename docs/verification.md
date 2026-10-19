@@ -157,7 +157,12 @@ quietly rewritten above, because the table is a record of *that* session:
 - the `.md` export now carries a Sources appendix, which it did not at the time.
 
 **What has not changed:** none of that is an *automated* browser test. Every one of those checks
-was manual, so a visual or interaction regression would still go uncaught by `npm test`.
+was manual, so a visual or interaction regression would still go uncaught by `npm test`. That
+is the status of the Stop-button and history-scroll fixes too: both were diagnosed from the
+DOM/CSS model and checked only with `eslint` and `vite build`, because no browser was
+available in that session. Neither has a regression test — the first needs a click rendered
+under jsdom (the suite has no component harness), the second needs real layout, which jsdom
+does not do.
 
 The frontend was checked by `eslint`, `vite build`, `node --test` (`npm test` — the diagram
 repair against the real Mermaid parser, and the citation parsing the exports depend on), an SSR

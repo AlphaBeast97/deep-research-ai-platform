@@ -20,7 +20,7 @@ stateDiagram-v2
     running --> running : event {report-reset} (clears report buffer)
     running --> done : event {done}
     running --> error : event {error} | fetch throws
-    running --> done : stop() (user aborts)
+    running --> done : stop() aborts, then AbortError settles
     done --> running : run(query)
     done --> idle : reset()
     error --> running : run(query)
@@ -52,6 +52,16 @@ instead of completing for a client that has gone away, and the next checkpoint
 (`throwIfAborted`) stops the run. One mechanism, both ends. See
 [§9.5](backend.md#95-heartbeat-and-dead-socket-handling).
 
+**Stop is an abort, not a state change.** `stop()` only aborts the request; `run`'s
+`AbortError` branch settles the state and sets `stopped`. That ordering is load-bearing, and
+cost a real bug: the control is a single `<button>` whose label and variant follow `running`,
+so setting the status to `done` inside the click handler changed the button's `type` from
+`button` to `submit` before the browser performed the click's default action. Pressing Stop
+then submitted the form, aborting the run and starting a new one with the same query in the
+same click. The button now keeps a constant `type="submit"` and calls `preventDefault()`
+while a run is in flight, and `stop()` no longer flips the status itself — so a second click
+still lands on Stop and does nothing.
+
 ### 13.2 Component tree
 
 ```mermaid
@@ -79,6 +89,13 @@ flowchart TD
 two `useState` values (`health`, `history`). Redux/Zustand would add a dependency to manage
 *a single object*. If the app grew a second view or optimistic multi-run support, that
 calculus would change.
+
+**Both sidebar lists scroll inside the same 62vh window** (`max-h-[62vh]` on a `flex-col`
+list). Every row therefore needs `shrink-0`. A flex item whose `overflow` is not `visible`
+has an automatic minimum size of zero, so the history rows — which clip their delete button
+with `overflow-hidden` — were compressed to fit the panel instead of overflowing into a
+scrollbar. The source rows never showed it because they do not clip, which is why one tab
+scrolled correctly and the other looked crammed.
 
 ### 13.3 The SSE parser (and why we wrote it)
 
