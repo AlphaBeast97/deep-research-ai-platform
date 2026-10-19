@@ -160,21 +160,25 @@ Each entry: the decision, what was rejected, why, and what it costs.
 - **Why:** importing a module must not bind a port or touch storage as a side effect. The factory makes the app importable and testable, and keeps the storage-failure exit ([ADR-10](#adr-10-fail-fast-on-storage-init-failure)) in the bootstrap where it belongs.
 - **Cost:** one extra file and one extra hop when tracing startup — a good trade.
 
-### ADR-21: The critique is advisory; the revision is unconditional
+### ADR-21: The revision is gated on actionable findings, not the verdict
 
-- **Decision:** when `RESEARCH_CRITIQUE=true`, the revision pass runs **regardless of the
-  critic's `verdict`**. The verdict is stored and displayed, but it does not gate the revision.
-- **Rejected:** the original design, which skipped revision when `verdict === 'solid'` unless
-  the critique contained a high-severity issue.
-- **Why:** the gate was **wrong in practice, not merely in theory.** In the first measured
-  live run the critic returned `verdict: "solid"` *and* two issues, one of them a real uncited
-  claim — and the pipeline skipped the revision entirely because of the verdict. A model's
-  one-word summary of its own review is the least trustworthy part of that review; the typed
-  issue list is the trustworthy part, and it is right there to act on. Skipping work to save
-  two seconds of a four-minute run was a false economy.
-- **Cost:** the revision's ~6 s and its tokens on every run, plus a second streamed report
-  that the client must be told to clear (`report-reset`). Both accepted: the user explicitly
-  prioritised depth and verified integrity over latency.
+- **Decision:** when `RESEARCH_CRITIQUE=true`, the revision pass runs only when the critique
+  names work the revisor can do — at least one issue with a stated fix
+  (`actionableIssues`), or a citation problem. The verdict is stored and displayed, but it
+  never gates the pass on its own.
+- **Rejected:** two coarser gates: skipping on `verdict === 'solid'` (the original design),
+  and running unconditionally (the one after it).
+- **Why:** the original gate was **wrong in practice, not merely in theory.** In the first
+  measured live run the critic returned `verdict: "solid"` *and* two issues, one of them a
+  real uncited claim — and the pipeline skipped the revision entirely because of the verdict.
+  A model's one-word summary of its own review is the least trustworthy part of that review;
+  the typed issue list is the trustworthy part. Running unconditionally overcorrected: a
+  clean audit then bought a full smart-model call that had no page text of its own to check
+  against, so it could only drift or invent detail. Gating on the issue list fixes the
+  original bug without paying for a pass with nothing to apply.
+- **Cost:** a genuinely clean draft now ships without a second streamed pass. That is the
+  intent, and the ~6 s plus tokens are spent only when the audit found something to fix. A
+  revision that does run still tells the client to clear the report (`report-reset`).
 - **Safety net:** if the revision call fails, or its output fails the fact-level gate, the
   draft is kept and `revised: false` is recorded with the reason — an improvement step may
   never make the output worse ([ADR-29](#adr-29-the-revision-is-judged-on-facts-not-length)).

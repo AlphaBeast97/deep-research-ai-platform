@@ -10,7 +10,7 @@
 ### 7.1 The pipeline, in six phases
 
 A run is not "plan → research → write". It is a six-phase pipeline with a gap-filling loop
-and a mandatory revision pass:
+and a revision pass that runs only on actionable findings:
 
 ```mermaid
 flowchart TD
@@ -46,18 +46,19 @@ flowchart TD
         C1["Audit the draft: uncited claims,<br/>overreach, contradictions,<br/>missing angles, structure"]
     end
 
-    C --> RV
+    C --> GATE{"an issue with a fix<br/>or a citation problem?"}
 
     subgraph RV["⑤ REVISE — smart model, streamed"]
-        RV1["Apply every issue and<br/>re-emit the full report"]
+        RV1["Apply every actionable issue<br/>and re-emit the full report"]
     end
-
-    RV --> AU
 
     subgraph AU["⑥ AUDIT — pure code, no LLM"]
         AU1["Verify every [n] resolves;<br/>drop unresolvable numbers"]
     end
 
+    GATE -->|"yes"| RV
+    GATE -->|"no"| AU
+    RV --> AU
     AU --> SAVE["Persist record"]
 ```
 
@@ -67,7 +68,7 @@ flowchart TD
 | **② Research** | `LLM_MODEL` | N (≈5) + F follow-ups | one sub-question + numbered sources (+ full page text) | `{ summary, coverage: 0–100, findings: [{point, cites[], confidence}], gaps[] }` |
 | **③ Draft** | `LLM_MODEL_SMART` | 1 (streamed) | topic + plan + all findings + source list | Markdown (analyst report + Mermaid) |
 | **④ Critique** | `LLM_MODEL_SMART` | 1 | the draft + the citation whitelist | `{ verdict, issues[], citationProblems[], recommendations[] }` |
-| **⑤ Revise** | `LLM_MODEL_SMART` | 1 (streamed) | the draft + the critique | revised Markdown |
+| **⑤ Revise** | `LLM_MODEL_SMART` | 0 or 1 (streamed) | the draft + the actionable critique | revised Markdown |
 | **⑥ Audit** | *none* | 0 | final report + sources | `{ references, coverage, invalid[], uncited[], invalidRemoved }` |
 
 **Total external calls per deep run.** With `N` sub-questions, `R` gap rounds attempted and `F`
@@ -75,19 +76,22 @@ follow-up queries issued (`R ≤ N × RESEARCH_MAX_ROUNDS`, `F ≤ R × MAX_FOLL
 
 - **Searches: `N + F`.** One per sub-question, plus one per follow-up query. The floor is `N`,
   not `N + 1`: nothing outside the research phase touches the web.
-- **LLM calls with the critique pass on: `4 + N + 2R`.** `plan`, `draft`, `critique` and
-  `revision` are one call each; every round costs an extraction (skipped when the sub-question
-  found no sources at all) and every extra round costs one follow-up proposal. Turning the
-  critique off leaves `plan` and `draft` as the whole fixed set, so the same run costs
-  `2 + N + 2R`. Setting `MAX_FOLLOWUP_QUERIES=0` removes the proposal without a call of its own,
-  after which no gap round can fire: `R = 0`, and the count is `4 + N` — or `2 + N` with the
-  critique off as well.
+- **LLM calls with the critique pass on: `3 + N + 2R`, plus one if the revision runs.**
+  `plan`, `draft` and `critique` are one call each; the revision is a fourth only when the
+  critique returned an issue with a stated fix or a citation problem. Every round costs an
+  extraction (skipped when the sub-question found no sources at all) and every extra round
+  costs one follow-up proposal. Turning the critique off leaves `plan` and `draft` as the
+  whole fixed set, so the same run costs `2 + N + 2R`. Setting `MAX_FOLLOWUP_QUERIES=0`
+  removes the proposal without a call of its own, after which no gap round can fire: `R = 0`,
+  and the count is `3 + N` — or `4 + N` when the revision runs, and `2 + N` with the critique
+  off as well.
 - **Page reads are a third class, not searches.** Up to `DEEP_FETCH_SOURCES` new pages per round,
   logged as "full pages read". On top of all three, a call whose answer is not usable JSON gets
   one repair attempt ([§10.5](backend.md#105-json-mode-defended-with-a-fallback)).
 
 With the defaults (`MAX_SUBQUESTIONS=6`, `RESEARCH_MAX_ROUNDS=2`, `MAX_FOLLOWUP_QUERIES=2`, the
-critique on) the ceiling for one run is **30 searches and 34 LLM calls**. The run measured in
+critique on) the ceiling for one run is **30 searches and 34 LLM calls** — the revision is
+included, since the ceiling assumes every critique finds work to apply. The run measured in
 [§15.1](verification.md#151-end-to-end-live-run) reported 13 searches and 13 LLM calls, which
 does not reconcile with this inventory — its 5 sub-questions over 4 gap rounds imply 17 calls —
 and it predates later phases, so read it as a historical measurement rather than as a check on
@@ -226,7 +230,7 @@ is used only to build researcher prompts, and dies with the run. This matters fo
 reasons: the stored record stays small and safe to send to the client, and the raw page text
 of arbitrary websites never becomes part of a durable document.
 
-### 7.7 Critique and the always-on revision
+### 7.7 Critique and the gated revision
 
 The draft is written by the same model family that would have to notice its own mistakes, so
 the pipeline inserts a **separate** critique call with a hostile-auditor prompt, then a
@@ -248,12 +252,16 @@ the pipeline inserts a **separate** critique call with a hostile-auditor prompt,
   prompt the largest in the pipeline (whole draft plus every source) and invite it to go
   looking rather than apply what the critique found. Its rules say so explicitly: if a fix
   would need a detail it was not given, drop the claim or mark it unestablished.
-- **Revision runs whenever `RESEARCH_CRITIQUE=true`, regardless of the verdict.** This was
-  originally gated on the critic's own `verdict` field and that was a **bug**: in the first
-  measured run the critic returned `verdict: "solid"` *while also reporting two issues*, and
-  the gate skipped the revision pass entirely. A model's summary judgement about its own
-  review is the least reliable part of the review. The verdict is now recorded as information
-  for the reader; it is not a control-flow switch. ([ADR-21](decisions.md#adr-21-the-critique-is-advisory-the-revision-is-unconditional))
+- **The revision is gated on actionable findings, not the verdict.** It runs when the
+  critique names work the revisor can do — at least one issue with a stated fix, or a
+  citation problem — and is skipped otherwise. The earlier design gated on the critic's own
+  `verdict` field and that was a **bug**: in the first measured run the critic returned
+  `verdict: "solid"` *while also reporting two issues*, and the gate skipped a revision that
+  was genuinely needed. A model's summary judgement about its own review is the least
+  reliable part of the review. Running unconditionally fixed that but overcorrected: a clean
+  audit then paid for a full smart-model pass that had no source text of its own, so it could
+  only drift or invent detail. The typed issue list is the signal; the verdict is recorded as
+  information for the reader, not used as a control-flow switch. ([ADR-21](decisions.md#adr-21-the-revision-is-gated-on-actionable-findings-not-the-verdict))
 - **The revision is guarded and has a fallback.** If the revision call throws — including a
   stream the stall watchdog cut off ([ADR-26](decisions.md#adr-26-two-budgets-for-a-streamed-answer))
   — or the output is unusable, the pipeline keeps the draft and records `revised: false`

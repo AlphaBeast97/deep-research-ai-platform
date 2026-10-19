@@ -364,6 +364,7 @@ async function pipeline(options, progress) {
 
   let report = draft
   let critique = null
+  let applicable = []
   let revised = false
   progress.draft = draftText
   progress.report = report
@@ -403,7 +404,7 @@ async function pipeline(options, progress) {
       // The revisor can only apply a fix the critic actually stated. Issues
       // without one stay in the record for the reader, but are not handed to
       // the revision as work to do.
-      const applicable = critic.actionableIssues(critique)
+      applicable = critic.actionableIssues(critique)
       logStep(
         'critic',
         'Critique complete',
@@ -421,32 +422,45 @@ async function pipeline(options, progress) {
       })
     }
 
-    if (!critique) {
-      emit({ type: 'status', message: 'Skipping the revision: there is no critique to apply.' })
+    // Revise only when the critique names work the revisor can do: an issue
+    // with a stated fix, or a citation problem. A "solid" verdict with no
+    // actionable findings leaves the revisor with nothing to check against (it
+    // never sees the sources), so a pass at that point can only drift or invent
+    // detail — and costs a full smart-model call.
+    const worthRevising =
+      critique && (applicable.length > 0 || critique.citationProblems.length > 0)
+
+    if (!worthRevising) {
+      emit({
+        type: 'status',
+        message: critique
+          ? 'Draft passed the audit — no revision needed.'
+          : 'Skipping the revision: there is no critique to apply.',
+      })
     } else {
-      // The revision always runs while the critique stage is enabled — see
-      // `hasMaterialIssues` for why the verdict is not used as a gate.
       throwIfAborted(signal)
       setPhase('revision')
       // Tell the client the report text is about to be replaced by the revision.
       emit({ type: 'report-reset' })
-      const applicable = critic.actionableIssues(critique)
-      emit({
-        type: 'status',
-        message:
-          applicable.length > 0
-            ? `Revising the report — applying ${applicable.length} critique finding(s)…`
-            : 'Revising the report — tightening quantification and citations…',
-      })
+      const citationProblems = critique.citationProblems.length
+      const work = [
+        applicable.length
+          ? `${applicable.length} critique finding${applicable.length === 1 ? '' : 's'}`
+          : null,
+        citationProblems
+          ? `${citationProblems} citation problem${citationProblems === 1 ? '' : 's'}`
+          : null,
+      ]
+        .filter(Boolean)
+        .join(' and ')
+      emit({ type: 'status', message: `Revising the report — applying ${work}…` })
       logStep(
         'writer',
         'Revising the report',
-        applicable.length
-          ? `applying ${applicable.length} issue(s)` +
-            (critique.issues.length > applicable.length
-              ? ` · ${critique.issues.length - applicable.length} left to the reader (no stated fix)`
-              : '')
-          : 'second pass: tighten figures and citations',
+        `applying ${work}` +
+          (critique.issues.length > applicable.length
+            ? ` · ${critique.issues.length - applicable.length} left to the reader (no stated fix)`
+            : ''),
         'start',
       )
 

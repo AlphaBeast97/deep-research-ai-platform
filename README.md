@@ -433,8 +433,8 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
 - **Deep fetch** — the strongest sources are read as full pages (Tavily `extract`)
   instead of only search snippets, so findings are grounded in more than a teaser.
 - **Self-critique & revision** — a critic audits the draft against its own
-  sources, then the writer revises it. The revision runs **unconditionally**, so
-  a verdict alone can't silently skip the fix.
+  sources, then the writer revises it when the audit names work to apply: an
+  issue with a stated fix, or a citation problem. A clean draft skips the pass.
 - **Citation audit** — before saving, every `[n]` marker is checked against the
   real source list; unresolvable ones are removed and coverage is reported.
 - **Live agent trace** — a live step indicator, per-agent steps, and the critic's issues

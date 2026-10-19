@@ -93,14 +93,15 @@ export function actionableIssues(critique) {
 }
 
 /**
- * Whether the critique found anything material.
+ * Whether the critique found anything material: a high-severity issue or any
+ * citation problem.
  *
- * Reported in the run log, but deliberately NOT a gate on the revision pass:
- * the revisor runs whenever the critique stage is enabled. Gating on the
- * critic's own lenient self-assessment meant the revision stage silently never
- * executed on a "solid" verdict, and a second pass reliably tightens
- * quantification and citation quality regardless. The verdict is surfaced to
- * the user instead of being used to skip work.
+ * Reported in the run log so a quiet audit is distinguishable from one that
+ * found real faults, but it is not the gate on the revision pass: the
+ * orchestrator revises when the critic supplied something the revisor can
+ * actually act on — an issue with a stated fix, or a citation problem. A
+ * critique with neither leaves the revision with no source text to check
+ * against, so it is skipped (see critic.actionableIssues).
  */
 export function hasMaterialIssues(critique) {
   if (!critique) return false

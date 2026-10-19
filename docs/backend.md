@@ -372,7 +372,7 @@ normally milliseconds, so a long silence there means a thinking model or a dead 
 is what `LLM_STREAM_IDLE_TIMEOUT_MS` bounds. Every frame re-arms the watchdog; only real output
 switches it from the first budget to the second. Retries are no help here either way: a stream
 that dies after the headers is already past the SDK's retry loop, which is why a stalled
-revision is degraded to the draft rather than silently retried ([§7.7](agents.md#77-critique-and-the-always-on-revision)).
+revision is degraded to the draft rather than silently retried ([§7.7](agents.md#77-critique-and-the-gated-revision)).
 The trade-off is recorded in [ADR-26](decisions.md#adr-26-two-budgets-for-a-streamed-answer),
 and the split is measured rather than asserted in [§15.5](verification.md#155-the-stall-watchdog-measured).
 
@@ -776,10 +776,11 @@ flowchart TD
     STOPF --> WRITE
     GAP -->|"no"| WRITE{"draft stream"}
     WRITE --> CRIT{"critique call"}
-    CRIT -->|"throws"| REV
-    CRIT -->|"ok"| REV{"revision stream<br/>(always runs)"}
+    CRIT -->|"throws, or nothing actionable"| NOREV["no revision pass<br/>(draft ships as written)"]
+    CRIT -->|"an issue with a fix<br/>or a citation problem"| REV{"revision stream"}
     REV -->|"throws (incl. a stall) or fails<br/>revisionRejection"| KEEP["keep the draft;<br/>revised = false"]
     REV -->|"ok"| AUDIT["citation audit +<br/>sanitise"]
+    NOREV --> AUDIT
     KEEP --> AUDIT
     AUDIT -->|"ok"| SAVE{"db.save"}
     SAVE -->|"throws"| SW["status 'could not save'<br/>**run still completes + done**"]
@@ -796,7 +797,7 @@ Four tiers of failure handling, each deliberate:
    if the database is down — the report was already streamed to them anyway.
 3. **Every *added* phase is individually survivable.** Deep-fetch failures drop to snippets;
    an empty or failed follow-up proposal ends the gap loop instead of the run; a failed
-   critique skips straight to revision; a revision that fails `revisionRejection` — empty,
+   critique skips the revision with it; a revision that fails `revisionRejection` — empty,
    citation-free, heading-free, or missing most of the draft's figures — keeps the draft. Each
    guard exists because the phase is an *enhancement* — the pipeline must still produce a
    cited report if any of them misbehave. A **stalled** revision counts as a failure, which
