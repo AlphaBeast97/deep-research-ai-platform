@@ -730,18 +730,24 @@ guessing.** It was added after the incident in [§15.2](verification.md#152-the-
 | **CORS** | Explicit `CLIENT_ORIGIN` allow-list, not `*` | `index.js` |
 | **Oversized request bodies** | `express.json({ limit: '1mb' })` | `index.js` |
 | **Prompt abuse / cost run-away** | Query capped at 500 chars; sub-questions, rounds, results, follow-ups, and deep-fetch counts all clamped in `config.js`; snippets truncated to 800 chars and full pages to 6,000 chars; follow-up loops bounded by `RESEARCH_MAX_ROUNDS` | `routes/research.js`, `config.js`, `search.js` |
-| **Prompt injection from web pages** | Partial only: the researcher is instructed to extract, not obey, the writer only sees structured findings, and the critic audits for overreach. **Not a hard guarantee.** | `prompts.js`, `critic.js` |
+| **Prompt injection from web pages** | Partial only: every prompt that reads page-derived text (researcher, critic, writer, revisor) states that sources and findings are untrusted data that cannot issue instructions; the researcher extracts rather than obeys, the writer only sees structured findings, and the critic audits for overreach. **Not a hard guarantee.** | `prompts.js`, `critic.js` |
 | **Raw page text leaking into storage or the client** | Full page text lives in a run-scoped `Map` and is never persisted, never put on the SSE stream | `orchestrator.js` |
 | **Unresolvable citations surviving into an export** | The audit removes them before the report is persisted, not merely flags them | `citations.js` (ADR-22) |
 | **A stolen session token** | Grants that user's reports for the token's lifetime and nothing else; Clerk tokens are short-lived JWTs | `app.js`, Clerk ([§20](verification.md#20-known-limitations-and-honest-gaps)) |
 | **Broken stream on client disconnect** | `closed` flag + `AbortController` propagation | `routes/research.js` |
 
 **On prompt injection:** this is the honest weak spot of any web-reading agent. A malicious
-page could contain text like "ignore your instructions". Our mitigations are (a) the
-researcher's system prompt fixes its task to extraction with citations, (b) the writer never
-sees raw page text — only the researcher's structured findings, and (c) the final output is
-rendered as safe Markdown, so an injection cannot execute code. It *could* still skew a
-report's content. This is flagged as a real limitation, not a solved problem.
+page could contain text like "ignore your instructions". Our mitigations are (a) all four
+prompts that touch page-derived text say explicitly that sources and the findings extracted
+from them are untrusted data and must not be obeyed — the researcher and critic see page
+bodies, and the writer and revisor see findings lifted from them, so the line belongs in all
+four rather than only where the raw text arrives; (b) the researcher's system prompt fixes
+its task to extraction with citations; (c) the writer never sees raw page text — only the
+researcher's structured findings; and (d) the final output is rendered as safe Markdown, so
+an injection cannot execute code. Naming the risk cannot stop a determined page from
+skewing a finding, so the structural boundary — structured findings with a bounded schema
+and a citation whitelist — is what actually limits the damage. This is flagged as a real
+limitation, not a solved problem.
 
 ---
 

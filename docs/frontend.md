@@ -169,9 +169,11 @@ and is never fetched unless someone exports.
 
 ### 13.6 Mermaid diagrams in the report
 
-The writer agent is instructed ([§8.3](agents.md#83-the-writer-prompt-and-the-format-spec)) to emit one or two
-```` ```mermaid ```` blocks. Rendering them is the interesting part, because the report is
-**streamed token by token** — at any given moment the Markdown is a partial document.
+The writer agent is instructed ([§8.3](agents.md#83-the-writer-prompt-and-the-format-spec)) to emit whatever
+diagram the chosen format asks for — one for the analyst report, the risk assessment and the
+timeline, none for the brief, comparison and evidence review. Rendering them is the
+interesting part, because the report is **streamed token by token** — at any given moment
+the Markdown is a partial document.
 
 ```mermaid
 flowchart TD

@@ -301,12 +301,12 @@ backend/
     db/
       index.js                     storage facade; owner-scoped reads/writes
       mongoStore.js                Mongoose adapter (only store)
-  test/                            node:test suite (`npm test`, 57 tests)
+  test/                            node:test suite (`npm test`, 59 tests)
     citations.test.js              audit, sanitiser, and the list-indentation regression
     sources.test.js                numbering, cross-sub-question reuse, URL normalisation
     researcher.test.js             finding validation, round merging, follow-up triggers
     concurrency.test.js            order, the concurrency limit, failure propagation
-    critic.test.js                 critique normalisation, severity and actionability rules
+    critic.test.js                 critique normalisation, actionability, the report-type guard
     orchestrator.test.js           the stored record shape, complete and partial runs
     writer.test.js                 the revision gate: what makes a rewrite unusable
     llm.test.js                    abort-signal composition + error translation

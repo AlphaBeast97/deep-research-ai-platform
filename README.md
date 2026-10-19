@@ -441,8 +441,10 @@ All research routes require a Clerk session (`Authorization: Bearer <token>`).
   appear as they happen, so a multi-minute run never looks frozen.
 - **Honesty in the UI** — an integrity strip and a self-critique panel surface the
   audit numbers and the critic's verdict instead of hiding them.
-- **Mermaid diagrams in the report** — the writer embeds ```` ```mermaid ```` flowcharts/timelines where they
-  clarify a process, and the UI renders them as SVG. Diagrams the model gets syntactically wrong
+- **Mermaid diagrams where the format calls for one** — the analyst report, risk assessment and
+  timeline each emit one diagram (a flowchart, or a `timeline` for the chronology), while the brief,
+  comparison and evidence review carry their content in bullets and tables and emit none. The UI
+  renders them as SVG. Diagrams the model gets syntactically wrong
   (Unicode or single-dash arrows, unquoted parentheses in labels, prose lines such as
   `A vs. B`) are repaired before they are parsed, so the diagram the prose refers to is the
   diagram you see; anything the repair cannot
