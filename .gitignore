@@ -9,4 +9,5 @@ data/
 FYP/
 .playwright-mcp/
 playwright-artifacts/
+graphify-out/
 
